@@ -49,6 +49,7 @@ class Database:
             result = await self.session.execute(stmt)
             return result.scalars().first()
         except Exception as e:
+            await self.session.rollback()
             logger.error(f"Error getting subscription by user id {user_id}: {e}")
 
     async def add_user(self, user: dict) -> None:
@@ -66,6 +67,7 @@ class Database:
             result = await self.session.execute(stmt)
             return result.scalars().first()
         except Exception as e:
+            await self.session.rollback()
             logger.error(f"Error getting subscription by user email {user_email}: {e}")
 
     async def add_company(self, company: dict) -> None:
