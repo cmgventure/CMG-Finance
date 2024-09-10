@@ -1,16 +1,9 @@
-import logging
 import os
 
 from dotenv import load_dotenv
 from hypercorn import Config
 
 load_dotenv()
-
-
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger()
 
 
 class Settings:

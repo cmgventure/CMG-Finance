@@ -1,6 +1,7 @@
 import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.connection import get_db
@@ -23,6 +24,7 @@ async def start_companies_update(
     current_user: User = Depends(get_current_user),
 ):
     if not current_user.superuser:
+        logger.error("Access Denied, user is not a superuser")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied"
         )
@@ -39,6 +41,7 @@ async def start_financial_statements_update(
     current_user: User = Depends(get_current_user),
 ):
     if not current_user.superuser:
+        logger.error("Access Denied, user is not a superuser")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied"
         )
@@ -50,6 +53,7 @@ async def start_financial_statements_update(
     if data.ticker:
         cik = await parser.update_company_if_not_exists(data.ticker)
         if not cik:
+            logger.error("Company not found for stock ticker {data.ticker}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Company not found for stock ticker {data.ticker}",
@@ -61,6 +65,7 @@ async def start_financial_statements_update(
 @router.get("/stop/companies")
 async def stop_companies_update(current_user: User = Depends(get_current_user)):
     if not current_user.superuser:
+        logger.error("Access Denied, user is not a superuser")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied"
         )
@@ -80,6 +85,7 @@ async def stop_financial_statements_update(
     current_user: User = Depends(get_current_user),
 ):
     if not current_user.superuser:
+        logger.error("Access Denied, user is not a superuser")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied"
         )
@@ -107,6 +113,7 @@ async def check_update_tasks(current_user: User = Depends(get_current_user)):
             return "Running"
 
     if not current_user.superuser:
+        logger.error("Access Denied, user is not a superuser")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied"
         )

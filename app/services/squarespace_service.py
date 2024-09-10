@@ -1,12 +1,13 @@
 import uuid
 from datetime import datetime
+from loguru import logger
 
 import aiohttp
 from dateutil.relativedelta import relativedelta
 from fastapi import HTTPException
 from starlette import status
 
-from app.core.config import logger, settings
+from app.core.config import settings
 from app.database.database import Database
 from app.schemas.schemas import FulfillmentStatus, ProductId, SubscriptionType
 
@@ -40,6 +41,7 @@ class SquarespaceService:
         elif product_id == ProductId.Premium and price == 250:
             return SubscriptionType.AnnualPremium
         else:
+            logger.error(f"Unknown product: {product_id}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Unknown product",
@@ -82,6 +84,7 @@ class SquarespaceService:
     async def save_user(self, user_email: str) -> str:
         profile = await self.get_profile(user_email)
         if not profile:
+            logger.error(f"User profile not found")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
             )
@@ -116,6 +119,7 @@ class SquarespaceService:
         ):
             timedelta = relativedelta(year=1)
         else:
+            logger.error(f"Invalid subscription type: {subscription_type}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid subscription type",

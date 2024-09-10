@@ -3,6 +3,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from google.auth.transport import requests
 from google.oauth2 import id_token
+from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.connection import get_db
@@ -19,12 +20,14 @@ async def verify_token(token: str) -> str:
 
         email = id_info.get("email")
         if not email:
+            logger.error("Email not found in token")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token",
             )
         return email
     except ValueError:
+        logger.error("Invalid token")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token",
@@ -40,6 +43,7 @@ async def get_current_user(
     database = Database(session=db)
     user = await database.get_user(user_email)
     if not user:
+        logger.error(f"User not found with email: {user_email}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )

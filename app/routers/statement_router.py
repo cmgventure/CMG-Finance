@@ -1,7 +1,8 @@
+from loguru import logger
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import logger
 from app.core.connection import get_db
 from app.database.database import Database
 from app.schemas.schemas import FinancialStatementRequest, User
@@ -20,6 +21,7 @@ async def get_statement(
     current_user: User = Depends(get_current_user),
 ) -> float | None:
     if not current_user.subscription and not current_user.superuser:
+        logger.error("Access Denied, user is not a superuser")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied"
         )

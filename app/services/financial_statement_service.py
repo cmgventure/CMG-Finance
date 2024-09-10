@@ -1,6 +1,7 @@
 import asyncio
 import time
 from functools import wraps
+from loguru import logger
 
 import aiohttp
 from aiohttp import ClientError
@@ -8,7 +9,7 @@ from fastapi import HTTPException
 from sec_edgar_api import EdgarClient
 from starlette import status
 
-from app.core.config import logger, settings
+from app.core.config import settings
 from app.database.database import Database
 from app.database.models import FinancialStatement
 from app.schemas.schemas import (
@@ -66,6 +67,7 @@ class FinancialStatementService:
         if not financial_statement:
             cik = await self.update_company_if_not_exists(data.ticker)
             if not cik:
+                logger.error(f"Company not found for stock ticker {data.ticker}")
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Company not found for stock ticker {data.ticker}",
