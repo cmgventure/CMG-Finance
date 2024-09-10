@@ -1,12 +1,12 @@
 import re
 from datetime import datetime
 from typing import Sequence
+from loguru import logger
 
 from sqlalchemy import and_, case, desc, distinct, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import logger
 from app.database.models import (
     Category,
     Company,
@@ -14,7 +14,6 @@ from app.database.models import (
     Subscription,
     User,
 )
-from app.schemas.schemas import calculation_map
 
 
 class Database:
@@ -67,7 +66,6 @@ class Database:
             result = await self.session.execute(stmt)
             return result.scalars().first()
         except Exception as e:
-            await self.session.rollback()
             logger.error(f"Error getting subscription by user email {user_email}: {e}")
 
     async def add_company(self, company: dict) -> None:
@@ -95,7 +93,6 @@ class Database:
             result = await self.session.execute(stmt)
             return result.scalars().first()
         except Exception as e:
-            await self.session.rollback()
             logger.error(f"Error getting company cik by ticker {ticker}: {e}")
 
     async def get_company_ciks(self) -> Sequence | None:
@@ -104,7 +101,6 @@ class Database:
             result = await self.session.execute(stmt)
             return result.scalars().all()
         except Exception as e:
-            await self.session.rollback()
             logger.error(f"Error getting companies: {e}")
 
     async def add_categories(self, categories: list):
