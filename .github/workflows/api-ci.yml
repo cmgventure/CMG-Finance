@@ -1,0 +1,83 @@
+name: Build on ECR and Deploy to AWS
+on:
+  push:
+    branches:
+      - main
+env:
+  BRANCH_NAME: main
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Install AWS CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y awscli
+
+      - name: Login to AWS ECR
+        run: |
+          aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+
+      - name: Build Docker image
+        run: |
+          docker build -t ${{ secrets.AWS_ECR_REPOSITORY }}:$IMAGE_TAG .
+
+      - name: Tag Docker image for ECR
+        run: |
+          docker tag ${{ secrets.AWS_ECR_REPOSITORY }}:$IMAGE_TAG ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.AWS_ECR_REPOSITORY }}:$IMAGE_TAG
+
+      - name: Push Docker image to ECR
+        run: |
+          docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.AWS_ECR_REPOSITORY }}:$IMAGE_TAG
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set permissions for private key
+        run: |
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > key.pem
+          chmod 600 key.pem
+
+      - name: Copy Docker Compose file to EC2
+        run: |
+          scp -o StrictHostKeyChecking=no -i key.pem docker-compose.yml ubuntu@${{ secrets.AWS_HOST }}:/home/ubuntu/CMG-Finance
+
+      - name: Remove orphan containers
+        run: |
+          ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.AWS_HOST }} <<EOF
+            cd /home/ubuntu/CMG-Finance
+            docker-compose down --remove-orphans
+          EOF
+
+      - name: Update code on EC2
+        run: |
+          ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.AWS_HOST }} <<EOF
+            cd /home/ubuntu/CMG-Finance
+            git remote set-url origin https://github.com/cmgventure/CMG-Finance.git
+            git reset --hard
+            git fetch origin
+            git checkout $BRANCH_NAME
+            git pull origin $BRANCH_NAME
+          EOF
+
+      - name: Pull Docker image from ECR and run containers using Docker Compose
+        run: |
+          ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.AWS_HOST }} <<EOF
+            cd /home/ubuntu/CMG-Finance
+            docker login -u AWS -p $(aws ecr get-login-password --region $AWS_REGION) ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+            docker-compose pull
+            docker-compose up -d
+          EOF

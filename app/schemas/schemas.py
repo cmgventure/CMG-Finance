@@ -120,7 +120,7 @@ class User(BaseModel):
 class FinancialStatementRequest(BaseModel, str_strip_whitespace=True):
     ticker: str
     category: str
-    period: str
+    period1: str
 
 
 class FinancialStatementsUpdateRequest(BaseModel, str_strip_whitespace=True):
