@@ -119,8 +119,8 @@ class User(BaseModel):
 
 class FinancialStatementRequest(BaseModel, str_strip_whitespace=True):
     ticker: str
-    category: str
-    period1: str
+    category1: str
+    period: str
 
 
 class FinancialStatementsUpdateRequest(BaseModel, str_strip_whitespace=True):

@@ -22,10 +22,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y awscli
-          echo "${{ secrets.AWS_REGION }}" > aws_access_key_id
-          echo "${{ secrets.AWS_ACCESS_KEY_ID }}" > aws_access_key_id
-          echo "${{ secrets.AWS_ECR_REPOSITORY }}" > aws_access_key_id
-          echo "${{ secrets.AWS_HOST }}" > aws_access_key_id
 
       - name: Login to AWS ECR
         run: |

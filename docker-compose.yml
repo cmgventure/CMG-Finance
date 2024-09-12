@@ -9,3 +9,9 @@ services:
       - ${APP_PORT}
     ports:
       - ${APP_PORT}:${APP_PORT}
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: "${AWS_REGION}"
+        awslogs-group: "${AWSLOGS_GROUP}"
+        awslogs-stream: "${AWSLOGS_STREAM}"
