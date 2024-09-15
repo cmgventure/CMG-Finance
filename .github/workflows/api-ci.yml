@@ -60,10 +60,6 @@ jobs:
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > key.pem
           chmod 600 key.pem
 
-      - name: Test connectivity to EC2 instance
-        run: |
-          ping -c 4 ${{ secrets.AWS_HOST }}
-
       - name: Copy Docker Compose file to EC2
         run: |
           scp -o StrictHostKeyChecking=no -i key.pem docker-compose.yml ubuntu@${{ secrets.AWS_HOST }}:/home/ubuntu/CMG-Finance
