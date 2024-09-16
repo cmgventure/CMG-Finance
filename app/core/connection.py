@@ -3,7 +3,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.core.config import settings
 from app.database.models import Base
 
-engine = create_async_engine(settings.postgres_url, echo=False)
+engine = create_async_engine(
+    settings.postgres_url,
+    echo=False,
+    pool_size=10,
+    max_overflow=20,
+    pool_timeout=60
+)
 session = async_sessionmaker(bind=engine, expire_on_commit=False)
 
 
