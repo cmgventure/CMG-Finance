@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.connection import get_db
 from app.database.database import Database
-from app.schemas.schemas import FinancialStatementRequest, User
+from app.schemas.schemas import FinancialStatementRequest, User, FinancialStatementsRequest
 from app.services.auth_service import get_current_user
 from app.services.financial_statement_service import FinancialStatementService
 
@@ -36,4 +36,31 @@ async def get_statement(
     logger.info(
         f"Return value for {data.ticker} {data.category} {data.period}: {value}"
     )
+    return value
+
+@router.post("/financial_statement_bulk")
+async def get_statement(
+    data: FinancialStatementsRequest,
+    current_user: User = Depends(get_current_user),
+) -> dict | None:
+
+    if not current_user.subscription and not current_user.superuser:
+        logger.error("Access Denied, user is not a superuser")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied"
+        )
+
+    logger.info(f"Accept request for {data}")
+
+    logger.info(
+        f"Return value for {data}"
+    )
+
+    value = {
+      "keyValuePairs": {
+        "AMZN|2023-Q1|Net Income": 1000000,
+        "GOOGL|2023-Q1|Total Assets": 2000000
+      }
+    }
+
     return value

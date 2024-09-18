@@ -253,7 +253,6 @@ class FinancialStatementService:
                         "report_date": financial_statement["end"],
                         "filing_date": financial_statement["filed"],
                         "tag": concept["tag"],
-                        # "label": concept["label"],
                         "form": financial_statement["form"],
                         "value": financial_statement["val"],
                     }

@@ -122,6 +122,9 @@ class FinancialStatementRequest(BaseModel, str_strip_whitespace=True):
     category: str
     period: str
 
+class FinancialStatementsRequest(BaseModel, str_strip_whitespace=True):
+    data: list[str]
+
 
 class FinancialStatementsUpdateRequest(BaseModel, str_strip_whitespace=True):
     ticker: str | None = None
