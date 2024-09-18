@@ -11,14 +11,10 @@ engine = create_async_engine(
     pool_timeout=60
 )
 session = async_sessionmaker(bind=engine, expire_on_commit=False)
-
+db = session()
 
 async def get_db() -> AsyncSession:
-    db = session()
-    try:
-        yield db
-    finally:
-        await db.close()
+    yield db
 
 
 async def create_all():
