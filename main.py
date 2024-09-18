@@ -18,10 +18,3 @@ app.include_router(healthcheck_router)
 app.include_router(order_router)
 app.include_router(statement_router)
 
-
-async def main():
-    await serve(app, hypercorn_config)
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
