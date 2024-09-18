@@ -37,7 +37,5 @@ class Settings:
 
 settings = Settings()
 
-sys.setrecursionlimit(10)
-
 hypercorn_config = Config()
 hypercorn_config.bind = [f"{settings.app_host}:{settings.app_port}"]
