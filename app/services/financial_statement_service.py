@@ -5,9 +5,9 @@ from loguru import logger
 
 import aiohttp
 from aiohttp import ClientError
-from fastapi import HTTPException
 from sec_edgar_api import EdgarClient
 from starlette import status
+from fastapi import HTTPException
 
 from app.core.config import settings
 from app.database.database import Database
@@ -18,6 +18,7 @@ from app.schemas.schemas import (
     calculation_map,
     category_map,
 )
+from app.services.scheduler import scheduler_service
 
 
 def synchronized_request(key_func):
@@ -59,44 +60,68 @@ class FinancialStatementService:
         self.user_agent = user.email
         self.edgar_client = EdgarClient(user_agent=self.user_agent)
 
+    async def task_collect_financial_statement_value(
+            self,
+            data: FinancialStatementRequest,
+            root_categories: set[str] | None = None,
+    ):
+        await self.calculate_financial_statement(data, root_categories)
+        cik = await self.update_company_if_not_exists(data.ticker)
+        if not cik:
+            logger.error(f"Company not found for stock ticker {data.ticker}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Company not found for stock ticker {data.ticker}",
+            )
+
+        await self.update_financial_statements(cik=cik, category=data.category)
+
     @synchronized_request(lambda data: f"{data.ticker} {data.category}")
     async def get_financial_statement(
-        self, data: FinancialStatementRequest, root_categories: set[str] | None = None
+            self, data: FinancialStatementRequest, root_categories: set[str] | None = None
     ) -> FinancialStatement | None:
-        financial_statement = await self.find_financial_statement(data, root_categories)
-        if not financial_statement:
-            cik = await self.update_company_if_not_exists(data.ticker)
-            if not cik:
-                logger.error(f"Company not found for stock ticker {data.ticker}")
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Company not found for stock ticker {data.ticker}",
-                )
+        # gets value from db or None
+        financial_statement = await self.db.get_financial_statement(
+            data
+        )
 
-            await self.update_financial_statements(cik=cik, category=data.category)
-            financial_statement = await self.find_financial_statement(
-                data, root_categories
-            )
+        if financial_statement is not None:
+            return financial_statement
+
+        # at this point we didn't get the value for the category for the ticker because it is not in the db
+        # we need to process multiple conditions on the category OR we need to scrape it?
+        if not root_categories:
+            root_categories = {data.category}
+        else:
+            root_categories.add(data.category)
+
+        # run bg task to calculate value
+        scheduler_service.add_job(
+            self.task_collect_financial_statement_value,
+            id=f"{data.ticker}|{data.period}|{data.category}",
+            misfire_grace_time=None,
+            trigger=settings.APSCHEDULER_JOB_TRIGGER,
+            args=[data, root_categories],
+            **settings.APSCHEDULER_PROCESSING_TASK_TRIGGER_PARAMS,
+        )
 
         return financial_statement
 
     async def calculate_financial_statement(
-        self, data: FinancialStatementRequest, root_categories: set[str]
+            self, data: FinancialStatementRequest, root_categories: set[str]
     ):
-        for k, v in calculation_map.items():
-            tag = k
-            if data.category.lower() == category_map.get(tag, "").lower():
-                conditions = v
+        for category, conditions in calculation_map.items():
+            if data.category.lower() == category_map.get(category, "").lower():
                 break
         else:
-            return
+            return None
 
         for condition in conditions:
             if root_categories.intersection(condition):
                 continue
 
             financial_statements = [
-                await self.get_financial_statement(
+                await self.find_financial_statement(
                     FinancialStatementRequest(
                         ticker=data.ticker,
                         category=value,
@@ -124,18 +149,17 @@ class FinancialStatementService:
                     ]
                 )
 
-            financial_statement = await self.db.update_category_value(
-                financial_statements[0], tag, value
+            return await self.db.update_category_value(
+                financial_statements[0], category, value
             )
-            return financial_statement
 
     async def find_financial_statement(
-        self, data: FinancialStatementRequest, root_categories: set[str] | None = None
+            self, data: FinancialStatementRequest, root_categories: set[str] | None = None
     ) -> FinancialStatement | None:
-        financial_statement = await self.db.find_financial_statement(
-            data.ticker, data.category, data.period
+        financial_statement = await self.db.get_financial_statement(
+            data
         )
-        if financial_statement:
+        if financial_statement is not None:
             return financial_statement
 
         if not root_categories:
@@ -192,7 +216,7 @@ class FinancialStatementService:
                 logger.error(f"Error fetching company submissions for CIK {cik}: {e}")
 
     async def get_company_concept(
-        self, cik: str, taxonomy: str, tag: str
+            self, cik: str, taxonomy: str, tag: str
     ) -> dict | None:
         async with self.semaphore:
             try:
@@ -265,7 +289,7 @@ class FinancialStatementService:
 
     @staticmethod
     def choose_calculation_category(
-        tag: str, category: str | None = None
+            tag: str, category: str | None = None
     ) -> str | None:
         for key, values in calculation_map.items():
             if category.lower() == category_map.get(key, "").lower():
@@ -281,9 +305,9 @@ class FinancialStatementService:
 
     def choose_category(self, tag: str, category: str | None = None) -> str | None:
         if (
-            category
-            and category_map.get(tag)
-            and category.lower() == category_map[tag].lower()
+                category
+                and category_map.get(tag)
+                and category.lower() == category_map[tag].lower()
         ):
             return tag
         elif category:
@@ -345,7 +369,7 @@ class FinancialStatementService:
             logger.info("Finished updating companies")
 
     async def update_financial_statements(
-        self, cik: str | None = None, category: str | None = None
+            self, cik: str | None = None, category: str | None = None
     ) -> None:
         try:
             ciks = [cik] if cik else await self.db.get_company_ciks()
@@ -418,13 +442,13 @@ class FinancialStatementService:
 
     async def start_companies_update(self, ticker: str | None = None) -> str:
         if (
-            FinancialStatementService.companies_update_task
-            and not FinancialStatementService.companies_update_task.done()
+                FinancialStatementService.companies_update_task
+                and not FinancialStatementService.companies_update_task.done()
         ):
             return "Companies data is being updated"
         elif (
-            FinancialStatementService.companies_update_task
-            and FinancialStatementService.companies_update_task.done()
+                FinancialStatementService.companies_update_task
+                and FinancialStatementService.companies_update_task.done()
         ):
             await FinancialStatementService.companies_update_task
 
@@ -434,16 +458,16 @@ class FinancialStatementService:
         return "Company data has started to be updated"
 
     async def start_financial_statements_update(
-        self, cik: str | None = None, category: str | None = None
+            self, cik: str | None = None, category: str | None = None
     ) -> str:
         if (
-            FinancialStatementService.financial_statements_update_task
-            and not FinancialStatementService.financial_statements_update_task.done()
+                FinancialStatementService.financial_statements_update_task
+                and not FinancialStatementService.financial_statements_update_task.done()
         ):
             return "Financial statements data is being updated"
         elif (
-            self.financial_statements_update_task
-            and FinancialStatementService.financial_statements_update_task.done()
+                self.financial_statements_update_task
+                and FinancialStatementService.financial_statements_update_task.done()
         ):
             await FinancialStatementService.financial_statements_update_task
 

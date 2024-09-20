@@ -34,6 +34,12 @@ class Settings:
 
     tags = []
 
+    APSCHEDULER_JOB_TRIGGER = "date"
+    APSCHEDULER_PROCESSING_TASK_TRIGGER_PARAMS = {
+        "run_date": "2021-07-30 00:00:00",
+
+    }
+
 
 settings = Settings()
 

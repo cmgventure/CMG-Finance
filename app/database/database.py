@@ -14,6 +14,7 @@ from app.database.models import (
     Subscription,
     User,
 )
+from app.schemas.schemas import FinancialStatementRequest
 
 
 class Database:
@@ -232,3 +233,17 @@ class Database:
         except Exception as e:
             await self.session.rollback()
             logger.error(f"Error getting financial statement: {e}")
+
+    async def get_financial_statement(
+            self,
+            financial_statement: FinancialStatementRequest,
+            root_categories: set[str] | None = None,
+    ):
+        stmt = select(FinancialStatement).join(Category).where(
+            Category.category == financial_statement.category,
+            Company.ticker == financial_statement.ticker,
+            FinancialStatement.period == financial_statement.period
+        )
+
+        result = await self.session.execute(stmt)
+        return result.scalars().first()

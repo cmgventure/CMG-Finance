@@ -122,6 +122,12 @@ class FinancialStatementRequest(BaseModel, str_strip_whitespace=True):
     category: str
     period: str
 
+class FinancialStatementResponse(BaseModel, str_strip_whitespace=True):
+    ticker: str
+    category: str
+    period: str
+    value: int | float | None = None
+
 class FinancialStatementsRequest(BaseModel, str_strip_whitespace=True):
     data: list[str]
 
