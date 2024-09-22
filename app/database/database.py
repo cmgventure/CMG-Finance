@@ -1,8 +1,8 @@
 import re
 from datetime import datetime
 from typing import Sequence
-from loguru import logger
 
+from loguru import logger
 from sqlalchemy import and_, case, desc, distinct, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -159,11 +159,8 @@ class Database:
             logger.error(f"Error adding financial statements: {e}")
 
     async def update_category_value(
-        self, financial_statement: FinancialStatement, category: str, value: float
+        self, financial_statement: FinancialStatement
     ) -> FinancialStatement:
-        financial_statement.tag = category
-        financial_statement.value = value
-
         categories = [
             {
                 "tag": financial_statement.tag,
@@ -233,17 +230,3 @@ class Database:
         except Exception as e:
             await self.session.rollback()
             logger.error(f"Error getting financial statement: {e}")
-
-    async def get_financial_statement(
-            self,
-            financial_statement: FinancialStatementRequest,
-            root_categories: set[str] | None = None,
-    ):
-        stmt = select(FinancialStatement).join(Category).where(
-            Category.category == financial_statement.category,
-            Company.ticker == financial_statement.ticker,
-            FinancialStatement.period == financial_statement.period
-        )
-
-        result = await self.session.execute(stmt)
-        return result.scalars().first()

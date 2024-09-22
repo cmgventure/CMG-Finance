@@ -1,5 +1,4 @@
 import os
-import sys
 
 from dotenv import load_dotenv
 from hypercorn import Config
@@ -35,10 +34,7 @@ class Settings:
     tags = []
 
     APSCHEDULER_JOB_TRIGGER = "date"
-    APSCHEDULER_PROCESSING_TASK_TRIGGER_PARAMS = {
-        "run_date": "2021-07-30 00:00:00",
-
-    }
+    APSCHEDULER_PROCESSING_TASK_TRIGGER_PARAMS = {}
 
 
 settings = Settings()

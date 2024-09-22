@@ -1,8 +1,6 @@
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from loguru import logger
 
-from app.core.config import settings
-
 
 class SchedulerService:
     PING_TASK_ID = "ping_task"

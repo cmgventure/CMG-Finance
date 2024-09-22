@@ -1,4 +1,4 @@
-from enum import IntEnum, StrEnum
+from enum import StrEnum
 
 from pydantic import BaseModel
 
@@ -122,14 +122,9 @@ class FinancialStatementRequest(BaseModel, str_strip_whitespace=True):
     category: str
     period: str
 
-class FinancialStatementResponse(BaseModel, str_strip_whitespace=True):
-    ticker: str
-    category: str
-    period: str
-    value: int | float | None = None
 
 class FinancialStatementsRequest(BaseModel, str_strip_whitespace=True):
-    data: list[str]
+    payload: list[str]
 
 
 class FinancialStatementsUpdateRequest(BaseModel, str_strip_whitespace=True):
@@ -139,3 +134,10 @@ class FinancialStatementsUpdateRequest(BaseModel, str_strip_whitespace=True):
 
 class CompaniesUpdateRequest(BaseModel, str_strip_whitespace=True):
     ticker: str | None = None
+
+
+class FinancialStatementResponse(BaseModel, str_strip_whitespace=True):
+    ticker: str
+    category: str
+    period: str
+    value: int | float | None = None
