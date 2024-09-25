@@ -33,8 +33,8 @@ class Database:
             await self.session.execute(stmt)
             await self.session.commit()
         except Exception as e:
-            await self.session.rollback()
             logger.error(f"Error adding subscription {subscription}: {e}")
+            await self.session.rollback()
 
     async def get_subscription(self, user_id: str) -> Subscription | None:
         try:
@@ -49,8 +49,8 @@ class Database:
             result = await self.session.execute(stmt)
             return result.scalars().first()
         except Exception as e:
-            await self.session.rollback()
             logger.error(f"Error getting subscription by user id {user_id}: {e}")
+            await self.session.rollback()
 
     async def add_user(self, user: dict) -> None:
         try:
@@ -58,8 +58,8 @@ class Database:
             await self.session.execute(stmt)
             await self.session.commit()
         except Exception as e:
-            await self.session.rollback()
             logger.error(f"Error adding user {user}: {e}")
+            await self.session.rollback()
 
     async def get_user(self, user_email: str) -> User | None:
         try:
@@ -75,8 +75,8 @@ class Database:
             await self.session.execute(stmt)
             await self.session.commit()
         except Exception as e:
-            await self.session.rollback()
             logger.error(f"Error adding company {company}: {e}")
+            await self.session.rollback()
 
     async def add_companies(self, companies: list[dict]) -> None:
         try:
@@ -85,8 +85,8 @@ class Database:
                 await self.session.execute(stmt)
             await self.session.commit()
         except Exception as e:
-            await self.session.rollback()
             logger.error(f"Error adding companies {companies}: {e}")
+            await self.session.rollback()
 
     async def get_company_cik(self, ticker: str) -> str | None:
         try:
@@ -111,8 +111,8 @@ class Database:
                 await self.session.execute(stmt)
             await self.session.commit()
         except Exception as e:
-            await self.session.rollback()
             logger.error(f"Error adding categories: {e}")
+            await self.session.rollback()
 
     @staticmethod
     def apply_fiscal_period_patterns(period: str) -> str:
@@ -141,8 +141,8 @@ class Database:
             await self.session.execute(stmt)
             await self.session.commit()
         except Exception as e:
-            await self.session.rollback()
             logger.error(f"Error adding financial statement: {e}")
+            await self.session.rollback()
 
     async def add_financial_statements(self, financial_statements: list[dict]) -> None:
         try:
@@ -155,8 +155,8 @@ class Database:
                 await self.session.execute(stmt)
             await self.session.commit()
         except Exception as e:
-            await self.session.rollback()
             logger.error(f"Error adding financial statements: {e}")
+            await self.session.rollback()
 
     async def update_category_value(
         self, financial_statement: FinancialStatement
@@ -173,8 +173,8 @@ class Database:
             for col in financial_statement.__table__.columns
         }
 
-        await self.add_financial_statement(statement_dict)
         await self.add_categories(categories)
+        await self.add_financial_statement(statement_dict)
 
         return financial_statement
 
@@ -228,5 +228,5 @@ class Database:
             result = await self.session.execute(stmt)
             return result.scalars().first()
         except Exception as e:
-            await self.session.rollback()
             logger.error(f"Error getting financial statement: {e}")
+            await self.session.rollback()

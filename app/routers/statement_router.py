@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.connection import get_db
+from app.core.connection import get_db, get_db_context, semaphore
 from app.database.database import Database
 from app.schemas.schemas import (
     FinancialStatementRequest,
@@ -45,10 +45,17 @@ async def get_statement(
     return value
 
 
+async def get_financial_statement_task(user: User, key: str) -> dict:
+    async with semaphore:
+        async with get_db_context() as db:
+            database = Database(session=db)
+            service = FinancialStatementService(db=database, user=user)
+            return await service.get_financial_statement_by_key(key)
+
+
 @router.post("/financial_statement_bulk")
 async def get_statements(
     data: FinancialStatementsRequest,
-    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
     if not current_user.subscription and not current_user.superuser:
@@ -57,18 +64,18 @@ async def get_statements(
             status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied"
         )
 
-    logger.info(f"Accepted request with data keys: {data.payload}")
-    logger.info(f"Accepted request with data length: {len(data.payload)}")
+    logger.info(f"Accepted request with data keys: {data.data}")
+    logger.info(f"Accepted request with data length: {len(data.data)}")
     start = time.time()
 
-    database = Database(session=db)
-    service = FinancialStatementService(db=database, user=current_user)
+    parsed_statements = {}
 
-    tasks = [service.get_financial_statement_by_key(key) for key in data.payload]
-    parsed_statements = await asyncio.gather(*tasks)
+    tasks = [get_financial_statement_task(current_user, key) for key in data.data]
+    for statement in await asyncio.gather(*tasks):
+        parsed_statements.update(statement)
 
     logger.info(f"Parsed statements: {parsed_statements}")
     end = time.time()
 
-    logger.info(f"TIME {end-start}. Return value for {len(data.payload)} statements")
-    return {"parsed_statements": parsed_statements}
+    logger.info(f"TIME {end-start}. Return value for {len(data.data)} statements")
+    return parsed_statements

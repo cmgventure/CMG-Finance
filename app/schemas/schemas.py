@@ -124,7 +124,7 @@ class FinancialStatementRequest(BaseModel, str_strip_whitespace=True):
 
 
 class FinancialStatementsRequest(BaseModel, str_strip_whitespace=True):
-    payload: list[str]
+    data: list[str]
 
 
 class FinancialStatementsUpdateRequest(BaseModel, str_strip_whitespace=True):

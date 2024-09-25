@@ -11,9 +11,9 @@ def parse_financial_statement_key(key: str) -> FinancialStatementRequest:
         if len(parts) != 3:
             raise ValueError(f"Invalid key format: {key}")
 
-        ticker, period, category = parts
+        ticker, category, period = parts
         return FinancialStatementRequest(
-            ticker=ticker, period=period, category=category
+            ticker=ticker.upper(), category=category, period=period
         )
     except Exception as e:
         logger.error(f"Failed to parse key: {key}. Error: {e}")

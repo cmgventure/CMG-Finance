@@ -14,7 +14,6 @@ from app.database.database import Database
 from app.database.models import FinancialStatement
 from app.schemas.schemas import (
     FinancialStatementRequest,
-    FinancialStatementResponse,
     User,
     calculation_map,
     category_map,
@@ -85,27 +84,22 @@ class FinancialStatementService:
 
         return financial_statement
 
-    async def get_financial_statement_by_key(
-        self, key: str
-    ) -> FinancialStatementResponse:
+    async def get_financial_statement_by_key(self, key: str) -> dict:
         parsed_request = parse_financial_statement_key(key)
 
         financial_statement = await self.get_financial_statement(parsed_request)
-        value = financial_statement.value if financial_statement else None
+        value = financial_statement.value if financial_statement else 0
 
-        return FinancialStatementResponse(
-            ticker=parsed_request.ticker,
-            period=parsed_request.period,
-            category=parsed_request.category,
-            value=value,
-        )
+        return {key: value}
 
     async def task_collect_financial_statement_value(
         self,
         data: FinancialStatementRequest,
-    ):
+    ) -> None:
         root_categories = {data.category}
-        await self.calculate_financial_statement(data, root_categories)
+        if await self.calculate_financial_statement(data, root_categories):
+            return None
+
         cik = await self.update_company_if_not_exists(data.ticker)
         if not cik:
             logger.error(f"Company not found for stock ticker {data.ticker}")
@@ -118,7 +112,7 @@ class FinancialStatementService:
 
     async def calculate_financial_statement(
         self, data: FinancialStatementRequest, root_categories: set[str]
-    ):
+    ) -> FinancialStatement | None:
         for category, conditions in calculation_map.items():
             if data.category.lower() == category_map.get(category, "").lower():
                 break
