@@ -1,44 +1,38 @@
-import os
-import sys
-
-from dotenv import load_dotenv
 from hypercorn import Config
+from pydantic_settings import BaseSettings
 
-load_dotenv()
 
+class Settings(BaseSettings):
+    app_host: str
+    app_port: int
 
-class Settings:
-    app_host = os.getenv("APP_HOST", "0.0.0.0")
-    app_port = os.getenv("APP_PORT", "8080")
+    postgres_user: str
+    postgres_password: str
+    postgres_db: str
+    postgres_host: str
+    postgres_port: str
 
-    postgres_user = os.getenv("POSTGRES_USER")
-    postgres_password = os.getenv("POSTGRES_PASSWORD")
-    postgres_db = os.getenv("POSTGRES_DB")
-    postgres_host = os.getenv("POSTGRES_HOST")
-    postgres_port = os.getenv("POSTGRES_PORT")
+    counter: int = 10
 
-    postgres_url = (
-        f"postgresql+asyncpg://{postgres_user}:{postgres_password}"
-        f"@{postgres_host}:{postgres_port}/{postgres_db}"
-    )
-
-    counter = int(os.getenv("COUNTER", 10))
-
-    squarespace_api_key = os.getenv("SQUARESPACE_API_KEY")
-    stripe_api_key = os.getenv("STRIPE_API_KEY")
+    squarespace_api_key: str
+    stripe_api_key: str
 
     # tags = [
     #     "revenue", "gross", "profit", "ratio", "income", "net", "eps", "diluted",
     #     "dividends", "stock", "cash", "assets", "liabilities", "equity", "debt"
     # ]
 
-    tags = []
+    tags: list = []
 
-    APSCHEDULER_JOB_TRIGGER = "date"
-    APSCHEDULER_PROCESSING_TASK_TRIGGER_PARAMS = {
-        "run_date": "2021-07-30 00:00:00",
+    APSCHEDULER_JOB_TRIGGER: str = "date"
+    APSCHEDULER_PROCESSING_TASK_TRIGGER_PARAMS: dict = {}
 
-    }
+    @property
+    def postgres_url(self):
+        return (
+            f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"
+            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+        )
 
 
 settings = Settings()

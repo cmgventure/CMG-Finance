@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
 from app.routers.auth_router import router as user_router
@@ -7,18 +9,18 @@ from app.routers.order_router import router as order_router
 from app.routers.statement_router import router as statement_router
 from app.services.scheduler import scheduler_service
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    scheduler_service.start()
+    yield
+    scheduler_service.shutdown()
+
+
+app = FastAPI(lifespan=lifespan)
 
 app.include_router(user_router)
 app.include_router(dev_router)
 app.include_router(healthcheck_router)
 app.include_router(order_router)
 app.include_router(statement_router)
-
-@app.on_event("startup")
-async def startup():
-    scheduler_service.start()
-
-@app.on_event("shutdown")
-async def startup():
-    scheduler_service.shutdown()

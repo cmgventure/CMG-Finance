@@ -1,3 +1,6 @@
+import asyncio
+from contextlib import asynccontextmanager
+
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -11,19 +14,22 @@ engine = create_async_engine(
     pool_recycle=1800,
     pool_pre_ping=True,
     pool_size=100,
-    max_overflow=10
+    max_overflow=10,
 )
 async_session = async_sessionmaker(
-    bind=engine,
-    class_=AsyncSession,
-    expire_on_commit=False
+    bind=engine, class_=AsyncSession, expire_on_commit=False
 )
+semaphore = asyncio.Semaphore(50)
+
 
 async def get_db() -> AsyncSession:
     async with async_session() as session:
         logger.critical("Opening session")
         yield session
         logger.critical("Closing session")
+
+
+get_db_context = asynccontextmanager(get_db)
 
 
 async def create_all():

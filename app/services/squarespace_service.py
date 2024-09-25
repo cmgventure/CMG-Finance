@@ -1,10 +1,10 @@
 import uuid
 from datetime import datetime
-from loguru import logger
 
 import aiohttp
 from dateutil.relativedelta import relativedelta
 from fastapi import HTTPException
+from loguru import logger
 from starlette import status
 
 from app.core.config import settings
