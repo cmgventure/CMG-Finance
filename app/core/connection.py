@@ -1,7 +1,6 @@
 import asyncio
 from contextlib import asynccontextmanager
 
-from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import settings
@@ -24,9 +23,7 @@ semaphore = asyncio.Semaphore(50)
 
 async def get_db() -> AsyncSession:
     async with async_session() as session:
-        logger.critical("Opening session")
         yield session
-        logger.critical("Closing session")
 
 
 get_db_context = asynccontextmanager(get_db)

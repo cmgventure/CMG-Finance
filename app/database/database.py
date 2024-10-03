@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Sequence
 
 from loguru import logger
-from sqlalchemy import and_, case, desc, distinct, func, or_, select
+from sqlalchemy import and_, case, desc, distinct, func, or_, select, literal_column
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,7 +14,6 @@ from app.database.models import (
     Subscription,
     User,
 )
-from app.schemas.schemas import FinancialStatementRequest
 
 
 class Database:
@@ -71,7 +70,7 @@ class Database:
 
     async def add_company(self, company: dict) -> None:
         try:
-            stmt = insert(Company).values(company).on_conflict_do_nothing()
+            stmt = insert(Company).values(company).on_conflict_do_update(index_elements=['cik'], set_=company)
             await self.session.execute(stmt)
             await self.session.commit()
         except Exception as e:
@@ -81,7 +80,7 @@ class Database:
     async def add_companies(self, companies: list[dict]) -> None:
         try:
             for company in companies:
-                stmt = insert(Company).values(company).on_conflict_do_nothing()
+                stmt = insert(Company).values(company).on_conflict_do_update(index_elements=['cik'], set_=company)
                 await self.session.execute(stmt)
             await self.session.commit()
         except Exception as e:
@@ -144,13 +143,20 @@ class Database:
             logger.error(f"Error adding financial statement: {e}")
             await self.session.rollback()
 
-    async def add_financial_statements(self, financial_statements: list[dict]) -> None:
+    async def add_financial_statements(self, financial_statements: list[list[dict]]) -> None:
         try:
             for financial_statement in financial_statements:
                 stmt = (
                     insert(FinancialStatement)
                     .values(financial_statement)
-                    .on_conflict_do_nothing()
+                    .on_conflict_do_update(
+                        index_elements=['accession_number', 'period', 'filing_date', 'report_date', 'cik', 'tag'],
+                        set_={
+                            'value': literal_column('excluded.value'),  # Update 'value' with the new value
+                            'form': literal_column('excluded.form'),  # Update 'form' with the new value
+                            # Add more columns if necessary
+                        }
+                    )
                 )
                 await self.session.execute(stmt)
             await self.session.commit()
