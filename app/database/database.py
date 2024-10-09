@@ -135,7 +135,13 @@ class Database:
             stmt = (
                 insert(FinancialStatement)
                 .values(financial_statement)
-                .on_conflict_do_nothing()
+                .on_conflict_do_update(
+                    index_elements=['accession_number', 'period', 'filing_date', 'report_date', 'cik', 'tag'],
+                    set_={
+                        'value': literal_column('excluded.value'),  # Update 'value' with the new value
+                        # Add more columns if necessary
+                    }
+                )
             )
             await self.session.execute(stmt)
             await self.session.commit()
@@ -153,7 +159,6 @@ class Database:
                         index_elements=['accession_number', 'period', 'filing_date', 'report_date', 'cik', 'tag'],
                         set_={
                             'value': literal_column('excluded.value'),  # Update 'value' with the new value
-                            'form': literal_column('excluded.form'),  # Update 'form' with the new value
                             # Add more columns if necessary
                         }
                     )
@@ -165,15 +170,9 @@ class Database:
             await self.session.rollback()
 
     async def update_category_value(
-        self, financial_statement: FinancialStatement
+        self, financial_statement: FinancialStatement, category_data: dict
     ) -> FinancialStatement:
-        categories = [
-            {
-                "tag": financial_statement.tag,
-                "category": financial_statement.tag,
-                "label": financial_statement.tag,
-            }
-        ]
+        categories = [category_data]
         statement_dict = {
             col.name: getattr(financial_statement, col.name)
             for col in financial_statement.__table__.columns

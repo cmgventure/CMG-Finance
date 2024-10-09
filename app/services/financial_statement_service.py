@@ -62,12 +62,13 @@ class FinancialStatementService:
         self.edgar_client = EdgarClient(user_agent=self.user_agent)
 
     async def get_financial_statement(
-        self, data: FinancialStatementRequest
+        self, data: FinancialStatementRequest, force_update: bool = False
     ) -> FinancialStatement | None:
         # gets value from db or None
-        financial_statement = await self.db.find_financial_statement(**data.dict())
-        if financial_statement is not None:
-            return financial_statement
+        if not force_update:
+            financial_statement = await self.db.find_financial_statement(**data.dict())
+            if financial_statement is not None:
+                return financial_statement
 
         # at this point we didn't get the value for the category for the ticker because it is not in the db
         # we need to process multiple conditions on the category OR we need to scrape it?
@@ -82,12 +83,10 @@ class FinancialStatementService:
             **settings.APSCHEDULER_PROCESSING_TASK_TRIGGER_PARAMS,
         )
 
-        return financial_statement
-
-    async def get_financial_statement_by_key(self, key: str) -> dict:
+    async def get_financial_statement_by_key(self, key: str, force_update: bool) -> dict:
         parsed_request = parse_financial_statement_key(key)
 
-        financial_statement = await self.get_financial_statement(parsed_request)
+        financial_statement = await self.get_financial_statement(parsed_request, force_update)
         value = financial_statement.value if financial_statement else 0
 
         return {key: value}
@@ -154,7 +153,15 @@ class FinancialStatementService:
 
             financial_statements[0].tag = category
             financial_statements[0].value = value
-            return await self.db.update_category_value(financial_statements[0])
+
+            category_data = {
+                "cik": financial_statements[0].cik,
+                "tag": category,
+                "category": data.category,
+                "label": data.category,
+            }
+
+            return await self.db.update_category_value(financial_statements[0], category_data)
 
     async def find_financial_statement(
         self, data: FinancialStatementRequest, root_categories: set[str]
@@ -387,6 +394,7 @@ class FinancialStatementService:
 
                         categories.append(
                             {
+                                "cik": cik,
                                 "tag": tag,
                                 "category": (
                                     category_map[tag] if tag in category_map else tag

@@ -8,9 +8,9 @@ category_map = {
     "Assets": "Total Assets",
     "AssetsCurrent": "Total Current Assets",
     "AvailableForSaleSecuritiesCurrent": "Marketable Securities",
-    "CashAndCashEquivalentsAtCarryingValue": "Free Cash Flow",
+    # "CashAndCashEquivalentsAtCarryingValue": "Free Cash Flow",
     "CashAndCashEquivalentsPeriodIncreaseDecrease": "Net Change in Cash",
-    "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents": "Free Cash Flow",
+    # "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents": "Free Cash Flow",
     "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalentsPeriodIncreaseDecreaseIncludingExchangeRateEffect": "Net Change in Cash",
     "CommunicationsAndInformationTechnology": "Communications and Information Technology",
     "CostOfGoodsAndServicesSold": "Cost Of Revenue",
@@ -125,6 +125,7 @@ class FinancialStatementRequest(BaseModel, str_strip_whitespace=True):
 
 class FinancialStatementsRequest(BaseModel, str_strip_whitespace=True):
     data: list[str]
+    force_update: bool = False
 
 
 class FinancialStatementsUpdateRequest(BaseModel, str_strip_whitespace=True):
