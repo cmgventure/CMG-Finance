@@ -65,7 +65,7 @@ class FinancialStatementService:
         self, data: FinancialStatementRequest
     ) -> FinancialStatement | None:
         # gets value from db or None
-        financial_statement = await self.db.find_financial_statement(**data.dict())
+        financial_statement = await self.db.find_financial_statement(**data.model_dump())
         if financial_statement is not None:
             return financial_statement
 
@@ -159,7 +159,7 @@ class FinancialStatementService:
     async def find_financial_statement(
         self, data: FinancialStatementRequest, root_categories: set[str]
     ) -> FinancialStatement | None:
-        financial_statement = await self.db.find_financial_statement(**data.dict())
+        financial_statement = await self.db.find_financial_statement(**data.model_dump())
         if financial_statement is not None:
             return financial_statement
 
