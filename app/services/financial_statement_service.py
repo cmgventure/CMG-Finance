@@ -233,11 +233,12 @@ class FinancialStatementService:
         try:
             ticker = None
             if not submissions["tickers"]:
+                breakpoint()
                 filings = submissions.get("filings", {}).get("recent", {})
                 forms = filings.get("form", [])
                 documents = filings.get("primaryDocument")
                 for form, document in zip(forms, documents):
-                    if form in ["10-Q", "10-K"]:
+                    if form in ["10-Q", "10-K", "20-F"]:
                         ticker = document.split("-")[0].upper()
                         break
             else:
@@ -265,7 +266,7 @@ class FinancialStatementService:
             financial_statements = []
             for unit_data in concept.get("units", {}).values():
                 for financial_statement in unit_data:
-                    if financial_statement["form"] not in ["10-Q", "10-K"]:
+                    if financial_statement["form"] not in ["10-Q", "10-K", "20-F"]:
                         continue
 
                     data = {
