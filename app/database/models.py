@@ -1,12 +1,31 @@
+import uuid
 from datetime import datetime
+from enum import StrEnum
 
-from sqlalchemy import Boolean, Column, DateTime, Enum, Float, ForeignKey, String
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Column,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    UUID,
+)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
 from app.schemas.schemas import FulfillmentStatus, SubscriptionType
 
 Base = declarative_base()
+
+
+class CategoryDefinitionType(StrEnum):
+    tag = "tag"
+    formula = "formula"
+    exact = "exact"  # precise | strict
 
 
 class User(Base):
@@ -70,3 +89,30 @@ class FinancialStatement(Base):
 
     company = relationship("Company", back_populates="financial_statements")
     category = relationship("Category", back_populates="financial_statements")
+
+
+class CategoryNew(Base):
+    __tablename__ = "categories2"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, index=True, default=uuid.uuid4)
+
+    title = Column(String)
+    description = Column(String, nullable=True)
+
+    definitions = relationship("CategoryDefinition", back_populates="category")
+
+
+class CategoryDefinition(Base):
+    __tablename__ = "category_definitions"
+    __table_args__ = {
+        CheckConstraint("priority >= 0"),
+    }
+
+    id = Column(UUID(as_uuid=True), primary_key=True, index=True, default=uuid.uuid4)
+    priority = Column(Integer, nullable=False, default=0)
+    type = Column(Enum(CategoryDefinitionType), nullable=True)  # either 'tag' or 'formula'
+    tag_value = Column(String, nullable=True)
+    formula_value = Column(String, nullable=True)
+    exact_value = Column(Float, nullable=True)
+
+    category_id = Column(UUID(as_uuid=True), ForeignKey("categories.id"))

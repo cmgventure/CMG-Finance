@@ -1,4 +1,5 @@
 import asyncio
+import re
 import time
 from functools import wraps
 
@@ -11,7 +12,12 @@ from starlette import status
 
 from app.core.config import settings
 from app.database.database import Database
-from app.database.models import FinancialStatement
+from app.database.models import (
+    FinancialStatement,
+    CategoryNew,
+    CategoryDefinition,
+    CategoryDefinitionType
+)
 from app.schemas.schemas import (
     FinancialStatementRequest,
     User,
@@ -61,11 +67,10 @@ class FinancialStatementService:
         self.user_agent = user.email
         self.edgar_client = EdgarClient(user_agent=self.user_agent)
 
-    async def get_financial_statement(
-        self, data: FinancialStatementRequest
-    ) -> FinancialStatement | None:
+    async def get_financial_statement(self, data: FinancialStatementRequest) -> FinancialStatement | None:
         # gets value from db or None
         financial_statement = await self.db.find_financial_statement(**data.model_dump())
+
         if financial_statement is not None:
             return financial_statement
 
@@ -92,12 +97,9 @@ class FinancialStatementService:
 
         return {key: value}
 
-    async def task_collect_financial_statement_value(
-        self,
-        data: FinancialStatementRequest,
-    ) -> None:
-        root_categories = {data.category}
-        if await self.calculate_financial_statement(data, root_categories):
+    async def task_collect_financial_statement_value(self, data: FinancialStatementRequest) -> None:
+        formula_namespace = {data.category}
+        if await self.calculate_financial_statement(data, formula_namespace):
             return None
 
         cik = await self.update_company_if_not_exists(data.ticker)
@@ -110,62 +112,93 @@ class FinancialStatementService:
 
         await self.update_financial_statements(cik=cik, category=data.category)
 
-    async def calculate_financial_statement(
-        self, data: FinancialStatementRequest, root_categories: set[str]
-    ) -> FinancialStatement | None:
-        for category, conditions in calculation_map.items():
-            if data.category.lower() == category_map.get(category, "").lower():
-                break
-        else:
-            return None
+    async def get_category_value_by_definition(
+        self,
+        data: FinancialStatementRequest,
+        category_definition: CategoryDefinition,
+        formula_namespace: set[str]
+    ) -> float | None:
+        if category_definition.type == CategoryDefinitionType.tag and category_definition.tag_value:
+            return (
+                await self.db.find_financial_statement(
+                    ticker=data.ticker,
+                    category=category_definition.tag_value,
+                    period=data.period
+                )
+            ).value
 
-        for condition in conditions:
-            if root_categories.intersection(condition):
-                continue
+        if category_definition.type == CategoryDefinitionType.formula and category_definition.formula_value:
+            # parse the formula string
+            formula_operands = re.findall(r"\w+", category_definition.formula_value, re.IGNORECASE)
+            formula_operators = re.findall(r"\(\+\)|\(\-\)", category_definition.formula_value, re.IGNORECASE)
 
-            financial_statements = [
-                await self.find_financial_statement(
-                    FinancialStatementRequest(
+            # get values for each operand
+            formula_operands_values = []
+            for category_operand in formula_operands:
+                # check if the category is already in the namespace, if it is, it means we have a circular dependency
+
+                # TODO: maybe formula_namespace should be a dict to store the values of the categories as well
+                # so we can work with self-references in formulas like a = a + b
+
+                if category_operand in formula_namespace:
+                    return None
+
+                # add the category to the namespace to prevent circular dependencies in formulas
+                formula_namespace.add(category_operand)
+
+                # get the value for the category
+                await self.calculate_financial_statement(
+                    data=FinancialStatementRequest(
                         ticker=data.ticker,
-                        category=value,
+                        category=category_operand,
                         period=data.period,
                     ),
-                    root_categories=root_categories.copy(),
+                    formula_namespace=formula_namespace
                 )
-                for value in condition
-            ]
-            if not all(financial_statements):
+
+            # if there are missing values, we can't calculate the formula correctly
+            if not all(formula_operands_values):
+                return None
+
+            # convert operators to 1 or -1 for addition or subtraction respectively
+            formula_converted_operators = [1 if operator_str == "(+)" else -1 for operator_str in formula_operators]
+
+            # apply the operators to the operands
+            for i in range(len(formula_converted_operators)):
+                formula_operands_values[i + 1] *= formula_converted_operators[i]
+
+            return sum(formula_operands_values)
+
+        if category_definition.type == CategoryDefinitionType.exact and category_definition.exact_value:
+            return category_definition.exact_value
+
+    async def calculate_financial_statement(
+        self,
+        data: FinancialStatementRequest,
+        formula_namespace: set[str]
+    ) -> FinancialStatement | None:
+        # 1. get category conditions (aka definitions)
+
+        # the .definitions should be collected with subquery and ordered by priority
+        category: CategoryNew | None = await self.db.get_category(data.category)
+
+        # 2. iterate over definitions
+
+        category_definition: CategoryDefinition
+        for category_definition in category.definitions:
+            value = await self.get_category_value_by_definition(data, category_definition, formula_namespace)
+
+            if value is None:
                 continue
 
-            if isinstance(condition, list):
-                value = sum(
-                    [
-                        financial_statement.value
-                        for financial_statement in financial_statements
-                    ]
+            return await self.db.update_category_value(
+                FinancialStatement(
+                    ticker=data.ticker,
+                    category=data.category,
+                    period=data.period,
+                    value=value,
                 )
-            else:
-                value = financial_statements[0].value - sum(
-                    [
-                        financial_statement.value
-                        for financial_statement in financial_statements[1:]
-                    ]
-                )
-
-            financial_statements[0].tag = category
-            financial_statements[0].value = value
-            return await self.db.update_category_value(financial_statements[0])
-
-    async def find_financial_statement(
-        self, data: FinancialStatementRequest, root_categories: set[str]
-    ) -> FinancialStatement | None:
-        financial_statement = await self.db.find_financial_statement(**data.model_dump())
-        if financial_statement is not None:
-            return financial_statement
-
-        root_categories.add(data.category)
-
-        return await self.calculate_financial_statement(data, root_categories)
+            )
 
     @synchronized_request(lambda ticker: ticker)
     async def update_company_if_not_exists(self, ticker: str) -> str | None:
