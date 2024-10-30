@@ -17,7 +17,7 @@ class SquarespaceService:
     default_headers = {
         "Content-Type": "application/json",
         "User-Agent": "CMG-Finance",
-        "Authorization": f"Bearer {settings.squarespace_api_key}",
+        "Authorization": f"Bearer {settings.SQUARESPACE_API_KEY}",
     }
 
     def __init__(self, db: Database) -> None:

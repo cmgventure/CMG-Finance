@@ -3,39 +3,41 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    app_host: str
-    app_port: int
+    APP_HOST: str
+    APP_PORT: int
 
-    postgres_user: str
-    postgres_password: str
-    postgres_db: str
-    postgres_host: str
-    postgres_port: str
+    POSTGRES_USER: str
+    POSTGRES_PASSWORD: str
+    POSTGRES_DB: str
+    POSTGRES_HOST: str
+    POSTGRES_PORT: str
 
-    counter: int = 10
+    COUNTER: int = 10
 
-    squarespace_api_key: str
-    stripe_api_key: str
+    SQUARESPACE_API_KEY: str
+    STRIPE_API_KEY: str
+
+    JWT_SECRET_KEY: str = "secret"
 
     # tags = [
     #     "revenue", "gross", "profit", "ratio", "income", "net", "eps", "diluted",
     #     "dividends", "stock", "cash", "assets", "liabilities", "equity", "debt"
     # ]
 
-    tags: list = []
+    # tags: list = []
 
-    APSCHEDULER_JOB_TRIGGER: str = "date"
-    APSCHEDULER_PROCESSING_TASK_TRIGGER_PARAMS: dict = {}
+    # APSCHEDULER_JOB_TRIGGER: str = "date"
+    # APSCHEDULER_PROCESSING_TASK_TRIGGER_PARAMS: dict = {}
 
     @property
     def postgres_url(self):
         return (
-            f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"
-            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+            f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
+            f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
         )
 
 
-settings = Settings()
+settings = Settings(_env_file=".env")
 
 hypercorn_config = Config()
-hypercorn_config.bind = [f"{settings.app_host}:{settings.app_port}"]
+hypercorn_config.bind = [f"{settings.APP_HOST}:{settings.APP_PORT}"]

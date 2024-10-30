@@ -14,18 +14,16 @@ from sqlalchemy import (
     String,
     UUID,
 )
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
+from app.database.base_class import Base
 from app.schemas.schemas import FulfillmentStatus, SubscriptionType
-
-Base = declarative_base()
 
 
 class CategoryDefinitionType(StrEnum):
-    tag = "tag"
-    formula = "formula"
-    exact = "exact"  # precise | strict
+    api_tag = "api-tag"
+    custom_formula = "custom-formula"
+    exact_value = "exact-value"
 
 
 class User(Base):
@@ -66,10 +64,16 @@ class Company(Base):
 
 class Category(Base):
     __tablename__ = "categories"
+    __table_args__ = (
+        CheckConstraint("priority >= 1"),
+    )
 
-    tag = Column(String, primary_key=True)
-    category = Column(String)
-    label = Column(String, nullable=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, index=True, default=uuid.uuid4, server_default="gen_random_uuid()")
+    label = Column(String)
+    value_definition = Column(String)
+    description = Column(String, nullable=True)
+    type = Column(Enum(CategoryDefinitionType), nullable=True, default=CategoryDefinitionType.api_tag)
+    priority = Column(Integer, nullable=False, default=1)
 
     financial_statements = relationship("FinancialStatement", back_populates="category")
 
@@ -85,34 +89,7 @@ class FinancialStatement(Base):
     value = Column(Float)
 
     cik = Column(String, ForeignKey("companies.cik"), primary_key=True)
-    tag = Column(String, ForeignKey("categories.tag"), primary_key=True)
+    category_id = Column(UUID(as_uuid=True), ForeignKey("categories.id"), primary_key=True)
 
     company = relationship("Company", back_populates="financial_statements")
     category = relationship("Category", back_populates="financial_statements")
-
-
-class CategoryNew(Base):
-    __tablename__ = "categories2"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, index=True, default=uuid.uuid4)
-
-    title = Column(String)
-    description = Column(String, nullable=True)
-
-    definitions = relationship("CategoryDefinition", back_populates="category")
-
-
-class CategoryDefinition(Base):
-    __tablename__ = "category_definitions"
-    __table_args__ = {
-        CheckConstraint("priority >= 0"),
-    }
-
-    id = Column(UUID(as_uuid=True), primary_key=True, index=True, default=uuid.uuid4)
-    priority = Column(Integer, nullable=False, default=0)
-    type = Column(Enum(CategoryDefinitionType), nullable=True)  # either 'tag' or 'formula'
-    tag_value = Column(String, nullable=True)
-    formula_value = Column(String, nullable=True)
-    exact_value = Column(Float, nullable=True)
-
-    category_id = Column(UUID(as_uuid=True), ForeignKey("categories.id"))
