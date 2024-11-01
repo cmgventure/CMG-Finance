@@ -1,6 +1,5 @@
 import uuid
 from datetime import datetime
-from enum import StrEnum
 
 from sqlalchemy import (
     Boolean,
@@ -17,13 +16,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 
 from app.database.base_class import Base
-from app.schemas.schemas import FulfillmentStatus, SubscriptionType
-
-
-class CategoryDefinitionType(StrEnum):
-    api_tag = "api-tag"
-    custom_formula = "custom-formula"
-    exact_value = "exact-value"
+from app.schemas.schemas import FulfillmentStatus, SubscriptionType, CategoryDefinitionType
 
 
 class User(Base):

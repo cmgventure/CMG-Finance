@@ -1,6 +1,8 @@
 from enum import StrEnum
+from uuid import UUID
 
 from pydantic import BaseModel
+
 
 category_map = {
     "AccruedIncomeTaxesCurrent": "Interest Expense",
@@ -89,6 +91,12 @@ calculation_map = {
 }
 
 
+class CategoryDefinitionType(StrEnum):
+    api_tag = "api_tag"
+    custom_formula = "custom_formula"
+    exact_value = "exact_value"
+
+
 class FulfillmentStatus(StrEnum):
     PENDING = "PENDING"
     CANCELED = "CANCELED"
@@ -141,3 +149,29 @@ class FinancialStatementResponse(BaseModel, str_strip_whitespace=True):
     category: str
     period: str
     value: int | float | None = None
+
+
+class FinancialStatementSchema(BaseModel):
+    accession_number: str
+    period: str
+    filing_date: str | None
+    report_date: str | None
+    cik: str
+    category_id: UUID
+    form: str | None
+    value: float | None
+
+    class Config:
+        from_attributes = True
+
+
+class CategorySchema(BaseModel):
+    id: UUID
+    label: str
+    value_definition: str
+    description: str
+    type: CategoryDefinitionType
+    priority: int
+
+    class Config:
+        from_attributes = True

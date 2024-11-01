@@ -7,8 +7,8 @@ Create Date: 2024-10-30 13:32:19.696674
 """
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
@@ -54,7 +54,7 @@ def upgrade():
 
     # Create ENUM type for 'type' column
     category_type_enum = postgresql.ENUM(
-        'api-tag', 'custom-formula', 'exact-value',
+        'api_tag', 'custom_formula', 'exact_value',
         name='categorydefinitiontype'
     )
     category_type_enum.create(op.get_bind(), checkfirst=True)
@@ -64,7 +64,7 @@ def upgrade():
         'priority', sa.Integer(), nullable=False, server_default='1'
     ))
     op.add_column('categories', sa.Column(
-        'type', category_type_enum, nullable=True, server_default="api-tag"
+        'type', category_type_enum, nullable=True, server_default="api_tag"
     ))
 
     # Add 'category_id' column to 'financial_statements' table
@@ -79,7 +79,7 @@ def upgrade():
             UPDATE financial_statements AS fs
             SET category_id = c.id
             FROM categories AS c
-            WHERE fs.tag = c.category_id
+            WHERE fs.tag = c.value_definition
         """)
 
     # Drop 'tag' column from 'financial_statements'
@@ -92,13 +92,6 @@ def upgrade():
         existing_type=postgresql.UUID(),
         nullable=False
     )
-
-    # Drop primary key constraint on 'financial_statements' (includes 'tag')
-    # op.drop_constraint(
-    #     'financial_statements_pkey',
-    #     'financial_statements',
-    #     type_='primary'
-    # )
 
     # Recreate primary key constraint including 'category_id'
     op.create_primary_key(
@@ -116,92 +109,6 @@ def upgrade():
 
     # Optionally, create the check constraint on 'categories'
     op.create_check_constraint("categories_priority_nz", "categories", "priority >= 1")
-
-    # # Drop old primary key constraint on 'categories'
-    # op.drop_constraint('categories_pkey', 'categories', type_='primary')
-    #
-    # # Rename 'label' to 'description'
-    # op.alter_column('categories', 'label', new_column_name='description')
-    #
-    # # Rename 'category' to 'label'
-    # op.alter_column('categories', 'category', new_column_name='label')
-    #
-    # # Rename 'tag' to 'value_definition'
-    # op.alter_column('categories', 'tag', new_column_name='value_definition')
-    #
-    # # Create new primary key on 'categories' with 'id'
-    # op.create_primary_key('categories_pkey', 'categories', ['id'])
-    #
-    # # Create ENUM type for 'type' column
-    # category_type_enum = postgresql.ENUM(
-    #     'api-tag', 'custom-formula', 'exact-value',
-    #     name='categorydefinitiontype'
-    # )
-    # category_type_enum.create(op.get_bind(), checkfirst=True)
-    #
-    # # Add 'priority' and 'type' columns to 'categories'
-    # op.add_column('categories', sa.Column(
-    #     'priority', sa.Integer(), nullable=False, server_default='1'
-    # ))
-    # op.add_column('categories', sa.Column(
-    #     'type', category_type_enum, nullable=True, server_default="'api-tag'"
-    # ))
-    #
-    # # Add 'value_definition' column to 'financial_statements' table
-    # op.add_column('financial_statements', sa.Column(
-    #     'value_definition',
-    #     postgresql.UUID(as_uuid=True),
-    #     nullable=True
-    # ))
-    #
-    # # Update 'financial_statements.value_definition' with corresponding 'categories.id'
-    # op.execute("""
-    #     UPDATE financial_statements AS fs
-    #     SET value_definition = c.id
-    #     FROM categories AS c
-    #     WHERE fs.tag = c.value_definition
-    # """)
-    #
-    # # Drop foreign key constraint on 'financial_statements.tag'
-    # op.drop_constraint(
-    #     'financial_statements_tag_fkey',
-    #     'financial_statements',
-    #     type_='foreignkey'
-    # )
-    #
-    # # Drop primary key constraint on 'financial_statements'
-    # op.drop_constraint(
-    #     'financial_statements_pkey',
-    #     'financial_statements',
-    #     type_='primary'
-    # )
-    #
-    # # Drop 'tag' column from 'financial_statements'
-    # op.drop_column('financial_statements', 'tag')
-    #
-    # # Alter 'value_definition' to be not nullable
-    # op.alter_column(
-    #     'financial_statements',
-    #     'value_definition',
-    #     existing_type=postgresql.UUID(),
-    #     nullable=False
-    # )
-    #
-    # # Recreate primary key constraint including 'value_definition'
-    # op.create_primary_key(
-    #     'financial_statements_pkey',
-    #     'financial_statements',
-    #     ['accession_number', 'period', 'filing_date', 'report_date', 'cik', 'value_definition']
-    # )
-    #
-    # # Add new foreign key constraint on 'value_definition'
-    # op.create_foreign_key(
-    #     'financial_statements_value_definition_fkey',
-    #     'financial_statements', 'categories',
-    #     ['value_definition'], ['id']
-    # )
-    #
-    # op.create_check_constraint("categories_priority_nz", "categories", "priority >= 1")
 
 
 def downgrade() -> None:

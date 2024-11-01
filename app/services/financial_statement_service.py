@@ -12,16 +12,13 @@ from starlette import status
 
 from app.core.config import settings
 from app.database.database import Database
-from app.database.models import (
-    FinancialStatement,
-    Category,
-    CategoryDefinitionType
-)
+from app.database.models import CategoryDefinitionType, FinancialStatement
 from app.schemas.schemas import (
-    FinancialStatementRequest,
-    User,
     calculation_map,
     category_map,
+    CategorySchema,
+    FinancialStatementRequest,
+    FinancialStatementSchema,
 )
 from app.services.scheduler import scheduler_service
 from app.utils.utils import parse_financial_statement_key
@@ -104,10 +101,10 @@ class FinancialStatementService:
     async def task_collect_financial_statement_value(self, data: FinancialStatementRequest) -> None:
         formula_namespace = dict.fromkeys([data.category], None)
 
-        if await self.calculate_financial_statement(data, formula_namespace):
+        if await self.calculate_financial_statement(data=data, formula_namespace=formula_namespace, only_formulas=True):
             return None
 
-        # SCRAPING START
+        logger.info(f"Scraping data for {data.ticker} {data.category} {data.period}")
 
         cik = await self.update_company_if_not_exists(data.ticker)
 
@@ -120,18 +117,17 @@ class FinancialStatementService:
 
         await self.update_financial_statements(cik=cik, category=data.category)
 
-        # SCRAPING END
+        logger.info(f"Data scraped for {data.ticker} {data.category} {data.period}")
 
-    async def get_category_formula_value(
+    async def get_category_record_value(
         self,
         data: FinancialStatementRequest,
-        category_record: Category,
+        category_record: CategorySchema,
         formula_namespace: dict[str, float | None]
-    ) -> FinancialStatement | None:
+    ) -> FinancialStatementSchema | None:
         # if it is a simple tag, we can get the value from the db
         if category_record.type == CategoryDefinitionType.api_tag and category_record.value_definition:
             # 1. what if there is not value by this tag ? -> returns None -> scrape data from the API
-            # TODO: add unique constraint to the db for the value_definition column
             return await self.db.get_financial_statement_by_category_tag(
                 ticker=data.ticker,
                 value_definition_tag=category_record.value_definition,
@@ -142,44 +138,45 @@ class FinancialStatementService:
         # and getting the values of each the operands separately
         elif category_record.type == CategoryDefinitionType.custom_formula and category_record.value_definition:
             # parse the formula string
-            formula_operands = re.findall(r"\w+", category_record.value_definition, re.IGNORECASE)
-            formula_operators = re.findall(r"\(\+\)|\(\-\)", category_record.value_definition, re.IGNORECASE)
 
-            # get values for each operand - human readable category titles
+            # Operands can be words separated by spaces, hyphens, or underscores.
+            # They can also be integers or floating-point numbers with a . symbol
+            operand_pattern = r"(?:\b[a-zA-Z_]+(?:[\s_-][a-zA-Z_]+)*\b|\b\d+(?:\.\d+)?\b)"
+
+            # Operators can be (+) or (-) symbols
+            operator_pattern = r"\(\+\)|\(\-\)"
+
+            # extract operands and operators from the formula
+            formula_operands = re.findall(operand_pattern, category_record.value_definition, re.IGNORECASE)
+            formula_operators = re.findall(operator_pattern, category_record.value_definition, re.IGNORECASE)
+
+            # get values for each operand - human-readable category titles
             financial_statements = []
             for formula_operand in formula_operands:
-                # check if the category is already in the namespace, if it is, it means we have a circular dependency
 
+                # check if the category is already in the namespace, if it is, it means we have a circular dependency
                 if formula_operand in formula_namespace:
                     return formula_namespace[formula_operand]
 
                 # add the category to the namespace to prevent circular dependencies in formulas
                 formula_namespace[formula_operand] = None
 
-                category_records: list[Category] = await self.db.get_all_categories_by_label(label=formula_operand)
-
-                # TODO: fixme
-                for category in category_records:
-                    subcategory_financial_statement = await self.db.get_first_financial_statement_by_category_label(
-                        ticker=data.ticker,
-                        period=data.period,
-                        category_label=category.label
-                    )
-
-                # get the value for the category
-                financial_statement = await self.get_category_formula_value(
+                formula_operand_financial_statement = await self.calculate_financial_statement(
                     data=FinancialStatementRequest(
                         ticker=data.ticker,
                         period=data.period,
-                        category=category_record.label
+                        category=formula_operand
                     ),
-                    category_record=category_record,
-                    formula_namespace=formula_namespace,
+                    formula_namespace=formula_namespace
                 )
-                financial_statements.append(financial_statement)
+
+                financial_statements.append(formula_operand_financial_statement)
+
+                formula_namespace[formula_operand] = formula_operand_financial_statement
 
             # if there are missing values, we can't calculate the formula correctly
-            if not financial_statements:
+            if not all(financial_statements) or not all([fs.value for fs in financial_statements if fs is not None]):
+                logger.error(f"Missing values. Unable to calculate value for category definition {category_record}")
                 return None
 
             # convert operators to 1 or -1 for addition or subtraction respectively
@@ -212,11 +209,14 @@ class FinancialStatementService:
         self,
         data: FinancialStatementRequest,
         formula_namespace: dict[str, None],
-    ) -> FinancialStatement | None:
-        # 1. get category conditions (aka definitions)
+        only_formulas: bool = False
+    ) -> FinancialStatementSchema | None:
+        # 1. get category metadata from the db
 
-        # the .definitions should be collected with subquery and ordered by priority
-        categories: list[Category] = await self.db.get_formula_defined_categories_for_label(data.category)
+        categories: list[CategorySchema]
+        categories = await self.db.get_categories_for_label(category_label=data.category, only_formulas=only_formulas)
+
+        logger.debug(f"Found {len(categories)} categories for tag '{data.category}' ({only_formulas=})")
 
         if not categories:
             logger.error(f"Category not found for tag {data.category}")
@@ -225,10 +225,10 @@ class FinancialStatementService:
 
         # 2. iterate over definitions
 
-        for formula_defined_category in categories:
-            financial_statement: FinancialStatement | None = await self.get_category_formula_value(
-                data=data,
-                category_record=formula_defined_category,
+        for category_record in categories:
+            financial_statement: FinancialStatementSchema | None = await self.get_category_record_value(
+                data=data,  # maybe change data.category to category_record.label
+                category_record=category_record,
                 formula_namespace=formula_namespace
             )
 
@@ -307,7 +307,6 @@ class FinancialStatementService:
         try:
             ticker = None
             if not submissions["tickers"]:
-                breakpoint()
                 filings = submissions.get("filings", {}).get("recent", {})
                 forms = filings.get("form", [])
                 documents = filings.get("primaryDocument")

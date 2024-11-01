@@ -3,33 +3,24 @@ from datetime import datetime
 from typing import Sequence
 
 from loguru import logger
-from sqlalchemy import and_, case, desc, distinct, func, or_, select, literal_column, asc, Result
+from sqlalchemy import desc, select, literal_column, asc, Result
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.database.models import (
     Category,
-    # CategoryTitle,
     Company,
     FinancialStatement,
     Subscription,
     User,
+    CategoryDefinitionType,
 )
+from app.schemas.schemas import CategorySchema, FinancialStatementSchema
 
 
 class Database:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
-
-    # async def get_category_with_title(self, title: str) -> CategoryTitle | None:
-    #     statement = (
-    #         select(CategoryTitle)
-    #         .options(selectinload(CategoryTitle.definitions))
-    #         .where(CategoryTitle.title == title)
-    #     )
-    #     result = await self.session.execute(statement)
-    #     return result.scalars().first()
 
     async def add_subscription(self, subscription: dict) -> None:
         try:
@@ -141,12 +132,27 @@ class Database:
 
         return period
 
-    async def add_financial_statement(self, financial_statement: dict) -> None:
+    async def add_financial_statement(self, financial_statement: FinancialStatementSchema) -> None:
         try:
+            financial_statement = financial_statement.model_dump()
             stmt = (
                 insert(FinancialStatement)
                 .values(financial_statement)
-                .on_conflict_do_nothing()
+                .on_conflict_do_update(
+                    # index_elements=[
+                    #     "accession_number",
+                    #     "period",
+                    #     "filing_date",
+                    #     "report_date",
+                    #     "cik",
+                    #     "category_id",
+                    # ],
+                    constraint='financial_statements_pkey',
+                    set_={
+                        'value': financial_statement['value'],
+                        'form': financial_statement.get('form'),
+                    }
+                )
             )
             await self.session.execute(stmt)
             await self.session.commit()
@@ -161,7 +167,7 @@ class Database:
                     insert(FinancialStatement)
                     .values(financial_statement)
                     .on_conflict_do_update(
-                        index_elements=['accession_number', 'period', 'filing_date', 'report_date', 'cik', 'tag'],
+                        index_elements=['accession_number', 'period', 'filing_date', 'report_date', 'cik', 'category_id'],
                         set_={
                             'value': literal_column('excluded.value'),  # Update 'value' with the new value
                             'form': literal_column('excluded.form'),  # Update 'form' with the new value
@@ -175,35 +181,33 @@ class Database:
             logger.error(f"Error adding financial statements: {e}")
             await self.session.rollback()
 
-    async def update_category_value(self, financial_statement: FinancialStatement) -> FinancialStatement:
-        categories = [
-            {
-                "tag": financial_statement.tag,
-                "category": financial_statement.tag,
-                "label": financial_statement.tag,
-            }
-        ]
-        statement_dict = {
-            col.name: getattr(financial_statement, col.name)
-            for col in financial_statement.__table__.columns
-        }
-
-        await self.add_categories(categories)
-        await self.add_financial_statement(statement_dict)
+    async def update_category_value(self, financial_statement: FinancialStatementSchema) -> FinancialStatementSchema:
+        try:
+            await self.add_financial_statement(financial_statement)
+        except Exception as e:
+            logger.error(f"Error updating category value: {e}")
+            await self.session.rollback()
 
         return financial_statement
 
-    async def get_formula_defined_categories_for_label(self, category_label: str) -> list[Category]:
+    async def get_categories_for_label(self, category_label: str, only_formulas: bool = False) -> list[CategorySchema]:
         stmt = (
             select(Category)
-            .where(
-                Category.label == category_label,
-                Category.type == "formula",
-            )
+            .where(Category.label == category_label)
             .order_by(Category.priority)
         )
+
+        if only_formulas:
+            stmt = stmt.where(Category.type == CategoryDefinitionType.custom_formula.name)
+
         result = await self.session.execute(stmt)
-        return result.scalars().all()
+
+        objects = result.scalars().all()
+
+        if not objects:
+            return []
+
+        return [CategorySchema.model_validate(obj) for obj in objects]
 
     async def _get_financial_statement_by_category_tag(
             self,
@@ -231,6 +235,7 @@ class Database:
                 desc(FinancialStatement.report_date),
             )
         )
+
         return await self.session.execute(stmt)
 
     async def get_first_financial_statement_by_category_label(
@@ -238,25 +243,19 @@ class Database:
         ticker: str,
         category_label: str,
         period: str,
-    ) -> FinancialStatement | None:
+    ) -> FinancialStatementSchema | None:
         result = await self._get_financial_statement_by_category_tag(ticker, category_label, period)
-        return result.scalars().first()
-
-    async def get_all_financial_statement_by_category_label(
-        self,
-        ticker: str,
-        category_label: str,
-        period: str,
-    ) -> list[FinancialStatement]:
-        result = await self._get_financial_statement_by_category_tag(ticker, category_label, period)
-        return result.scalars().all()
+        obj = result.scalars().first()
+        if obj:
+            return FinancialStatementSchema.model_validate(obj)
+        return None
 
     async def get_financial_statement_by_category_tag(
         self,
         ticker: str,
         value_definition_tag: str,
         period: str
-    ) -> FinancialStatement | None:
+    ) -> FinancialStatementSchema | None:
         period = self.apply_fiscal_period_patterns(period)
         report_date = f"{period.split()[1]}-01-01"
 
@@ -279,11 +278,8 @@ class Database:
         )
         result = await self.session.execute(stmt)
         obj = result.scalars().first()
-        return obj
 
-    async def get_all_categories_by_label(self, label: str) -> list[Category]:
-        stmt = select(Category).where(Category.label == label)
-        result = await self.session.execute(stmt)
-        return result.scalars().all()
+        if obj:
+            return FinancialStatementSchema.model_validate(obj)
 
-# SELECT financial_statements.accession_number, financial_statements.period, financial_statements.filing_date, financial_statements.report_date, financial_statements.form, financial_statements.value, financial_statements.cik, financial_statements.category_id \nFROM financial_statements JOIN companies ON companies.cik = financial_statements.cik JOIN categories ON categories.id = financial_statements.category_id \nWHERE companies.ticker = :ticker_1 AND financial_statements.period = :period_1 AND financial_statements.report_date >= :report_date_1 AND categories.label = :label_1 ORDER BY categories.priority ASC, financial_statements.filing_date DESC, financial_statements.report_date DESC
+        return None
