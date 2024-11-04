@@ -165,13 +165,17 @@ class FinancialStatementSchema(BaseModel):
         from_attributes = True
 
 
-class CategorySchema(BaseModel):
-    id: UUID
+class CategoryBaseSchema(BaseModel):
     label: str
     value_definition: str
     description: str
     type: CategoryDefinitionType
     priority: int
 
-    class Config:
-        from_attributes = True
+
+class CategorySchema(CategoryBaseSchema):
+    id: UUID
+
+
+class CategoryCreateSchema(CategoryBaseSchema):
+    pass

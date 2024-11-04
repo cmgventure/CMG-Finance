@@ -24,6 +24,7 @@ class User(Base):
     id = Column(String, primary_key=True)
     email = Column(String)
     superuser = Column(Boolean, default=False)
+    password_hash = Column(String, nullable=True)
 
     subscriptions = relationship("Subscription", back_populates="user")
 

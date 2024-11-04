@@ -1,6 +1,6 @@
 from north_admin import AuthProvider, UserReturnSchema, NorthAdmin, AdminRouter, FilterGroup, Filter
 from north_admin.types import AdminMethods, FieldType
-from sqlalchemy import select, and_, bindparam
+from sqlalchemy import select, and_, bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -9,10 +9,10 @@ from app.database.models import User, Subscription, Company, Category, Financial
 
 class AdminAuthProvider(AuthProvider):
     async def login(
-            self,
-            session: AsyncSession,
-            login: str,
-            password: str,
+        self,
+        session: AsyncSession,
+        login: str,
+        password: str,
     ) -> User | None:
         query = (
             select(User)
@@ -23,9 +23,9 @@ class AdminAuthProvider(AuthProvider):
         return await session.scalar(query)
 
     async def get_user_by_id(
-            self,
-            session: AsyncSession,
-            user_id: str,
+        self,
+        session: AsyncSession,
+        user_id: str,
     ) -> User | None:
         query = (
             select(User)
@@ -36,8 +36,8 @@ class AdminAuthProvider(AuthProvider):
         return await session.scalar(query)
 
     async def to_user_scheme(
-            self,
-            user: User,
+        self,
+        user: User,
     ) -> UserReturnSchema:
         return UserReturnSchema(
             id=user.id,
@@ -78,9 +78,12 @@ company_get_columns = [
 ]
 
 category_get_columns = [
-    Category.tag,
-    Category.category,
+    Category.id,
     Category.label,
+    Category.value_definition,
+    Category.description,
+    Category.type,
+    Category.priority,
 ]
 
 financial_statement_get_columns = [
@@ -91,7 +94,7 @@ financial_statement_get_columns = [
     FinancialStatement.form,
     FinancialStatement.value,
     FinancialStatement.cik,
-    FinancialStatement.tag,
+    FinancialStatement.category_id,
 ]
 
 admin_app.add_admin_routes(
@@ -231,31 +234,30 @@ admin_app.add_admin_routes(
             AdminMethods.UPDATE,
             AdminMethods.GET_ONE,
             AdminMethods.GET_LIST,
+            AdminMethods.DELETE
         ],
-        pkey_column=Category.tag,
+        pkey_column=Category.id,
         soft_delete_column=None,
         get_columns=category_get_columns,
         list_columns=category_get_columns,
         filters=[
             FilterGroup(
                 query=(
-                    and_(
-                        Category.tag > bindparam('id_greater_than_param'),
-                    )
+                    text("1 = 1")
                 ),
                 filters=[
                     Filter(
-                        bindparam='id_greater_than_param',
+                        bindparam='a',
                         title='ID greater than',
                         field_type=FieldType.STRING,
                     ),
                 ],
             ),
             FilterGroup(
-                query=(Category.tag == bindparam('exact_id_param')),
+                query=(text("1 = 1")),
                 filters=[
                     Filter(
-                        bindparam='exact_id_param',
+                        bindparam='b',
                         title='Exact ID',
                         field_type=FieldType.STRING,
                     )
