@@ -3,19 +3,23 @@ from datetime import datetime
 from typing import Sequence
 
 from loguru import logger
-from sqlalchemy import desc, select, literal_column, asc, Result
+from sqlalchemy import Result, asc, desc, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.models import (
     Category,
+    CategoryDefinitionType,
     Company,
     FinancialStatement,
     Subscription,
     User,
-    CategoryDefinitionType,
 )
-from app.schemas.schemas import CategorySchema, FinancialStatementSchema
+from app.schemas.schemas import (
+    CategoryBaseSchema,
+    CategorySchema,
+    FinancialStatementSchema,
+)
 
 
 class Database:
@@ -72,7 +76,11 @@ class Database:
 
     async def add_company(self, company: dict) -> None:
         try:
-            stmt = insert(Company).values(company).on_conflict_do_update(index_elements=['cik'], set_=company)
+            stmt = (
+                insert(Company)
+                .values(company)
+                .on_conflict_do_update(index_elements=["cik"], set_=company)
+            )
             await self.session.execute(stmt)
             await self.session.commit()
         except Exception as e:
@@ -82,7 +90,11 @@ class Database:
     async def add_companies(self, companies: list[dict]) -> None:
         try:
             for company in companies:
-                stmt = insert(Company).values(company).on_conflict_do_update(index_elements=['cik'], set_=company)
+                stmt = (
+                    insert(Company)
+                    .values(company)
+                    .on_conflict_do_update(index_elements=["cik"], set_=company)
+                )
                 await self.session.execute(stmt)
             await self.session.commit()
         except Exception as e:
@@ -105,10 +117,14 @@ class Database:
         except Exception as e:
             logger.error(f"Error getting companies: {e}")
 
-    async def add_categories(self, categories: list):
+    async def add_categories(self, categories: list[CategoryBaseSchema]):
         try:
             for category in categories:
-                stmt = insert(Category).values(category).on_conflict_do_nothing()
+                stmt = (
+                    insert(Category)
+                    .values(category.model_dump())
+                    .on_conflict_do_nothing()
+                )
                 await self.session.execute(stmt)
             await self.session.commit()
         except Exception as e:
@@ -132,26 +148,20 @@ class Database:
 
         return period
 
-    async def add_financial_statement(self, financial_statement: FinancialStatementSchema) -> None:
+    async def add_financial_statement(
+        self, financial_statement: FinancialStatementSchema
+    ) -> None:
         try:
             financial_statement = financial_statement.model_dump()
             stmt = (
                 insert(FinancialStatement)
                 .values(financial_statement)
                 .on_conflict_do_update(
-                    # index_elements=[
-                    #     "accession_number",
-                    #     "period",
-                    #     "filing_date",
-                    #     "report_date",
-                    #     "cik",
-                    #     "category_id",
-                    # ],
-                    constraint='financial_statements_pkey',
+                    constraint="financial_statements_pkey",
                     set_={
-                        'value': financial_statement['value'],
-                        'form': financial_statement.get('form'),
-                    }
+                        "value": financial_statement["value"],
+                        "form": financial_statement.get("form"),
+                    },
                 )
             )
             await self.session.execute(stmt)
@@ -160,19 +170,18 @@ class Database:
             logger.error(f"Error adding financial statement: {e}")
             await self.session.rollback()
 
-    async def add_financial_statements(self, financial_statements: list[list[dict]]) -> None:
+    async def add_financial_statements(self, financial_statements: list[dict]) -> None:
         try:
             for financial_statement in financial_statements:
                 stmt = (
                     insert(FinancialStatement)
                     .values(financial_statement)
                     .on_conflict_do_update(
-                        index_elements=['accession_number', 'period', 'filing_date', 'report_date', 'cik', 'category_id'],
+                        constraint="financial_statements_pkey",
                         set_={
-                            'value': literal_column('excluded.value'),  # Update 'value' with the new value
-                            'form': literal_column('excluded.form'),  # Update 'form' with the new value
-                            # Add more columns if necessary
-                        }
+                            "value": financial_statement["value"],
+                            "form": financial_statement.get("form"),
+                        },
                     )
                 )
                 await self.session.execute(stmt)
@@ -181,7 +190,9 @@ class Database:
             logger.error(f"Error adding financial statements: {e}")
             await self.session.rollback()
 
-    async def update_category_value(self, financial_statement: FinancialStatementSchema) -> FinancialStatementSchema:
+    async def update_category_value(
+        self, financial_statement: FinancialStatementSchema
+    ) -> FinancialStatementSchema:
         try:
             await self.add_financial_statement(financial_statement)
         except Exception as e:
@@ -190,7 +201,9 @@ class Database:
 
         return financial_statement
 
-    async def get_categories_for_label(self, category_label: str, only_formulas: bool = False) -> list[CategorySchema]:
+    async def get_categories_for_label(
+        self, category_label: str, only_formulas: bool = False
+    ) -> list[CategorySchema]:
         stmt = (
             select(Category)
             .where(Category.label == category_label)
@@ -198,7 +211,9 @@ class Database:
         )
 
         if only_formulas:
-            stmt = stmt.where(Category.type == CategoryDefinitionType.custom_formula.name)
+            stmt = stmt.where(
+                Category.type == CategoryDefinitionType.custom_formula.name
+            )
 
         result = await self.session.execute(stmt)
 
@@ -207,13 +222,13 @@ class Database:
         if not objects:
             return []
 
-        return [CategorySchema.model_validate(obj) for obj in objects]
+        return [CategorySchema.model_validate(obj.__dict__) for obj in objects]
 
     async def _get_financial_statement_by_category_tag(
-            self,
-            ticker: str,
-            category_label: str,
-            period: str,
+        self,
+        ticker: str,
+        category_label: str,
+        period: str,
     ) -> Result:
         period = self.apply_fiscal_period_patterns(period)
         report_date = f"{period.split()[1]}-01-01"
@@ -244,17 +259,16 @@ class Database:
         category_label: str,
         period: str,
     ) -> FinancialStatementSchema | None:
-        result = await self._get_financial_statement_by_category_tag(ticker, category_label, period)
+        result = await self._get_financial_statement_by_category_tag(
+            ticker, category_label, period
+        )
         obj = result.scalars().first()
         if obj:
             return FinancialStatementSchema.model_validate(obj)
         return None
 
     async def get_financial_statement_by_category_tag(
-        self,
-        ticker: str,
-        value_definition_tag: str,
-        period: str
+        self, ticker: str, value_definition_tag: str, period: str
     ) -> FinancialStatementSchema | None:
         period = self.apply_fiscal_period_patterns(period)
         report_date = f"{period.split()[1]}-01-01"

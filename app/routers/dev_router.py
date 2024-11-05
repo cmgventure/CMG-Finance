@@ -6,11 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.connection import get_db
 from app.database.database import Database
-from app.schemas.schemas import (
-    CompaniesUpdateRequest,
-    FinancialStatementsUpdateRequest,
-    User,
-)
+from app.schemas.schemas import CompaniesUpdateRequest, User
 from app.services.auth_service import get_current_user
 from app.services.financial_statement_service import FinancialStatementService
 
@@ -30,36 +26,25 @@ async def start_companies_update(
         )
 
     database = Database(session=db)
-    parser = FinancialStatementService(db=database, user=current_user)
+    parser = FinancialStatementService(db=database)
     return await parser.start_companies_update(data.ticker)
 
 
-@router.post("/update/financial_statements")
-async def start_financial_statements_update(
-    data: FinancialStatementsUpdateRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    if not current_user.superuser:
-        logger.error("Access Denied, user is not a superuser")
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied"
-        )
-
-    database = Database(session=db)
-    parser = FinancialStatementService(db=database, user=current_user)
-
-    cik = None
-    if data.ticker:
-        cik = await parser.update_company_if_not_exists(data.ticker)
-        if not cik:
-            logger.error("Company not found for stock ticker {data.ticker}")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Company not found for stock ticker {data.ticker}",
-            )
-
-    return await parser.start_financial_statements_update(cik, data.category)
+# @router.post("/update/financial_statements")
+# async def start_financial_statements_update(
+#     db: AsyncSession = Depends(get_db),
+#     current_user: User = Depends(get_current_user),
+# ):
+#     if not current_user.superuser:
+#         logger.error("Access Denied, user is not a superuser")
+#         raise HTTPException(
+#             status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied"
+#         )
+#
+#     database = Database(session=db)
+#     parser = FinancialStatementService(db=database)
+#
+#     return await parser.start_financial_statements_update()
 
 
 @router.get("/stop/companies")
