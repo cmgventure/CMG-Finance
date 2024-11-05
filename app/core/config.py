@@ -17,17 +17,8 @@ class Settings(BaseSettings):
     SQUARESPACE_API_KEY: str
     STRIPE_API_KEY: str
 
-    JWT_SECRET_KEY: str = "secret"
-
-    # tags = [
-    #     "revenue", "gross", "profit", "ratio", "income", "net", "eps", "diluted",
-    #     "dividends", "stock", "cash", "assets", "liabilities", "equity", "debt"
-    # ]
-
-    # tags: list = []
-
-    # APSCHEDULER_JOB_TRIGGER: str = "date"
-    # APSCHEDULER_PROCESSING_TASK_TRIGGER_PARAMS: dict = {}
+    JWT_SECRET_KEY: str
+    ALGORITHM: str = "HS256"
 
     @property
     def postgres_url(self):

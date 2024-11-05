@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
+    UniqueConstraint,
     Boolean,
     CheckConstraint,
     Column,
@@ -60,6 +61,7 @@ class Category(Base):
     __tablename__ = "categories"
     __table_args__ = (
         CheckConstraint("priority >= 1"),
+        UniqueConstraint("label", "value_definition", "type", name="uq_label_value_definition_type"),
     )
 
     id = Column(UUID(as_uuid=True), primary_key=True, index=True, default=uuid.uuid4, server_default="gen_random_uuid()")

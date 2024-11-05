@@ -2,9 +2,9 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from north_admin import setup_admin
 
-from app.core.admin import admin_app
+from app.routers.admin.auth import auth_router
+from app.routers.admin.categories import categories_router
 from app.routers.auth_router import router as user_router
 from app.routers.dev_router import router as dev_router
 from app.routers.healthcheck_router import router as healthcheck_router
@@ -21,7 +21,6 @@ async def lifespan(app: FastAPI):
 
 origins = [
     "http://localhost:3000",
-    # Add other origins if necessary
 ]
 
 app = FastAPI(lifespan=lifespan)
@@ -34,13 +33,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth_router, prefix="/admin")
+app.include_router(categories_router, prefix="/admin")
 app.include_router(user_router)
 app.include_router(dev_router)
 app.include_router(healthcheck_router)
 app.include_router(order_router)
 app.include_router(statement_router)
-
-setup_admin(
-    admin_app=admin_app,
-    app=app,
-)

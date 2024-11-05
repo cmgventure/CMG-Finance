@@ -179,3 +179,11 @@ class CategorySchema(CategoryBaseSchema):
 
 class CategoryCreateSchema(CategoryBaseSchema):
     pass
+
+
+class CategoryUpdateSchema(BaseModel):
+    label: str | None = None
+    value_definition: str | None = None
+    description: str | None = None
+    type: CategoryDefinitionType | None = None
+    priority: int | None = None
