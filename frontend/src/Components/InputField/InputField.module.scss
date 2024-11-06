@@ -1,0 +1,32 @@
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 15px;
+  width: 100%;
+
+  label {
+    font-size: 16px;
+    margin-bottom: 5px;
+    font-weight: bold;
+    color: #333;
+  }
+  .inputField {
+    padding: 10px;
+    font-size: 16px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    width: 100%;
+    box-sizing: border-box;
+    transition: border-color 0.3s ease;
+
+    &:focus {
+      border-color: #6c63ff;
+      outline: none;
+    }
+  }
+  .errorMessage {
+    color: red;
+    font-size: 14px;
+    margin-top: 5px;
+  }
+}

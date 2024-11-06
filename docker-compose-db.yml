@@ -1,0 +1,19 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:16.3
+    container_name: cmg-postgres
+    ports:
+      - "5434:5432"
+    restart: always
+    environment:
+      POSTGRES_USER: cmg
+      POSTGRES_PASSWORD: cmg
+      POSTGRES_DB: cmg-finance
+    volumes:
+      - cmgdata:/var/lib/postgresql/data
+
+volumes:
+    cmgdata:
+        driver: local
+        name: cmg-data

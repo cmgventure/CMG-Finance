@@ -35,7 +35,7 @@ async def get_statement(
     start = time.time()
 
     database = Database(session=db)
-    service = FinancialStatementService(db=database, user=current_user)
+    service = FinancialStatementService(db=database)
     financial_statement = await service.get_financial_statement(data)
     value = financial_statement.value if financial_statement else None
 
@@ -46,11 +46,13 @@ async def get_statement(
     return value
 
 
-async def get_financial_statement_task(user: User, key: str, force_update: bool) -> dict:
+async def get_financial_statement_task(
+    user: User, key: str, force_update: bool
+) -> dict:
     async with semaphore:
         async with get_db_context() as db:
             database = Database(session=db)
-            service = FinancialStatementService(db=database, user=user)
+            service = FinancialStatementService(db=database)  # user=user
             # if force_update is True -> run API scrapper else get financial statement from DB
             if force_update:
                 logger.warning(f"Force update for {key}")
@@ -78,7 +80,10 @@ async def get_statements(
 
     parsed_statements = {}
 
-    tasks = [get_financial_statement_task(current_user, key, force_update) for key in data.data]
+    tasks = [
+        get_financial_statement_task(current_user, key, force_update)
+        for key in data.data
+    ]
     for statement in await asyncio.gather(*tasks):
         parsed_statements.update(statement)
 

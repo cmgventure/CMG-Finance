@@ -1,12 +1,23 @@
+import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Enum, Float, ForeignKey, String
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import (
+    UniqueConstraint,
+    Boolean,
+    CheckConstraint,
+    Column,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    UUID,
+)
 from sqlalchemy.orm import relationship
 
-from app.schemas.schemas import FulfillmentStatus, SubscriptionType
-
-Base = declarative_base()
+from app.database.base_class import Base
+from app.schemas.schemas import FulfillmentStatus, SubscriptionType, CategoryDefinitionType
 
 
 class User(Base):
@@ -14,6 +25,7 @@ class User(Base):
     id = Column(String, primary_key=True)
     email = Column(String)
     superuser = Column(Boolean, default=False)
+    password_hash = Column(String, nullable=True)
 
     subscriptions = relationship("Subscription", back_populates="user")
 
@@ -47,10 +59,17 @@ class Company(Base):
 
 class Category(Base):
     __tablename__ = "categories"
+    __table_args__ = (
+        CheckConstraint("priority >= 1"),
+        UniqueConstraint("label", "value_definition", "type", name="uq_label_value_definition_type"),
+    )
 
-    tag = Column(String, primary_key=True)
-    category = Column(String)
-    label = Column(String, nullable=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, index=True, default=uuid.uuid4, server_default="gen_random_uuid()")
+    label = Column(String)
+    value_definition = Column(String)
+    description = Column(String, nullable=True)
+    type = Column(Enum(CategoryDefinitionType), nullable=True, default=CategoryDefinitionType.api_tag)
+    priority = Column(Integer, nullable=False, default=1)
 
     financial_statements = relationship("FinancialStatement", back_populates="category")
 
@@ -66,7 +85,7 @@ class FinancialStatement(Base):
     value = Column(Float)
 
     cik = Column(String, ForeignKey("companies.cik"), primary_key=True)
-    tag = Column(String, ForeignKey("categories.tag"), primary_key=True)
+    category_id = Column(UUID(as_uuid=True), ForeignKey("categories.id"), primary_key=True)
 
     company = relationship("Company", back_populates="financial_statements")
     category = relationship("Category", back_populates="financial_statements")
