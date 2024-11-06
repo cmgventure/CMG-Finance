@@ -8,4 +8,10 @@ export default defineConfig({
   build: {
     outDir: "build",
   },
+  server: {
+    port: 5173,
+    host: true,
+    strictPort: true,
+    origin: "http://0.0.0.0:5173",
+  },
 });
