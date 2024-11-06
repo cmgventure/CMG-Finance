@@ -1,0 +1,91 @@
+.mainBlock {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  flex-direction: column;
+  justify-content: flex-start;
+  background-color: #f9fff9;
+  align-items: center;
+}
+
+.actionsBlock {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.editButton, .deleteButton {
+  background-color: #f44336;
+  color: #fff;
+  border: none;
+  padding: 6px 12px;
+  font-size: 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.editButton {
+  background-color: #2196F3;
+}
+
+.editButton:hover {
+  background-color: #1976D2;
+}
+
+.deleteButton:hover {
+  background-color: #d32f2f;
+}
+
+td, th {
+  padding: 12px;
+  text-align: center;
+  //white-space: nowrap; /* Prevents the text from wrapping */
+}
+
+.tableContainer {
+  width: 100%;
+  overflow-x: auto;
+  margin-bottom: 20px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.action {
+  margin: 0 10px;
+
+  &:hover {
+    cursor: pointer;
+  }
+}
+
+.headerBlock {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 1rem;
+  margin: 20px 0;
+
+  .createButton {
+    margin-right: auto;
+    z-index: 1;
+  }
+
+  .centerTitle {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    font-weight: bold;
+    font-size: 1.5rem;
+    text-align: center;
+    z-index: 0;
+  }
+}
+

@@ -1,0 +1,23 @@
+.nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 20px;
+  background-color: #e6f6e6;
+}
+
+.categoryLink {
+  cursor: pointer;
+  font-weight: bold;
+  color: #333;
+  transition: color 0.3s;
+  border-bottom: 1px solid black;
+
+  &:hover {
+    color: #007bff;
+  }
+}
+
+.logoutButton {
+  margin-left: auto;
+}

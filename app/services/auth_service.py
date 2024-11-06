@@ -4,7 +4,7 @@ from google.auth.transport import requests
 from google.oauth2 import id_token
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
-from jose import jwt, JWTError
+from jose import jwt, JWTError, ExpiredSignatureError
 
 from app.core.config import settings
 from app.core.connection import get_db
@@ -22,6 +22,11 @@ async def verify_token(token: str) -> str:
         if user_email is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
         return user_email
+    except ExpiredSignatureError:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Token has expired",
+            )
     except JWTError:
         # If the token is not a valid custom JWT, try verifying it as a Google token
         try:

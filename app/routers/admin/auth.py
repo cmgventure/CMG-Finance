@@ -51,7 +51,7 @@ async def login_for_access_token(credentials: UserLoginSchema, db: Session = Dep
     access_token = create_access_token(
         data={"sub": user.email}, expires_delta=access_token_expires
     )
-    refresh_token = create_access_token(data={"sub": user.id}, expires_delta=timedelta(days=7))
+    refresh_token = create_access_token(data={"sub": user.email}, expires_delta=timedelta(days=7))
     return {"access_token": access_token, "refresh_token": refresh_token}
 
 
