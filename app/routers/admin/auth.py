@@ -9,6 +9,7 @@ from typing import Optional
 from app.core.config import settings
 from app.core.connection import get_db
 from app.database.models import User
+from app.schemas.schemas import UserLoginSchema
 
 # Security setup for JWT
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
@@ -38,9 +39,9 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 
 
 @auth_router.post("/login")
-async def login_for_access_token(username: str, password: str, db: Session = Depends(get_db)):
-    user = (await db.execute(select(User).filter(User.email == username))).scalar()
-    if not user or not verify_password(password, user.password_hash):
+async def login_for_access_token(credentials: UserLoginSchema, db: Session = Depends(get_db)):
+    user = (await db.execute(select(User).filter(User.email == credentials.email))).scalar()
+    if not user or not verify_password(credentials.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",

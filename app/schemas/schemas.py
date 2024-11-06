@@ -187,3 +187,8 @@ class CategoryUpdateSchema(BaseModel):
     description: str | None = None
     type: CategoryDefinitionType | None = None
     priority: int | None = None
+
+
+class UserLoginSchema(BaseModel):
+    email: str
+    password: str
