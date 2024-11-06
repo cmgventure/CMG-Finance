@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str
     ALGORITHM: str = "HS256"
 
+    AWS_REGION: str
+    AWSLOGS_GROUP: str
+    AWSLOGS_STREAM: str
+
     @property
     def postgres_url(self):
         return (
