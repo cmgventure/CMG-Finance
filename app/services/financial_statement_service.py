@@ -73,7 +73,7 @@ class FinancialStatementService:
         # gets value from db or None
         financial_statement = (
             await self.db.get_first_financial_statement_by_category_label(
-                **data.model_dump()
+                ticker=data.ticker, category_label=data.category, period=data.period
             )
         )
 
@@ -89,9 +89,8 @@ class FinancialStatementService:
             self.task_collect_financial_statement_value,
             id=f"{data.ticker}|{data.category}",
             misfire_grace_time=None,
-            trigger=settings.APSCHEDULER_JOB_TRIGGER,
+            trigger="date",
             args=[data],
-            **settings.APSCHEDULER_PROCESSING_TASK_TRIGGER_PARAMS,
         )
 
         return financial_statement
@@ -569,17 +568,13 @@ class FinancialStatementService:
                     detail="No facts for category label",
                 )
 
-            save_task = None
             for taxonomy, taxonomy_data in facts.items():
                 fetch_start_time = time.time()
                 categories = await self.db.get_categories_for_label(label)
 
                 category = self.choose_category(categories, taxonomy_data)
                 if not category:
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail="No tags for category label",
-                    )
+                    continue
 
                 concept = await self.get_company_concept(
                     cik=cik, taxonomy=taxonomy, tag=category.value_definition
@@ -595,19 +590,11 @@ class FinancialStatementService:
                 logger.info(
                     f"Financial statements was fetched in {time.time() - fetch_start_time} seconds"
                 )
-
-                if save_task:
-                    await save_task
                 logger.info(
                     f"Saving financial statements for company with CIK {cik} "
                     f"and {len(financial_statements)} financial statements"
                 )
-                save_task = asyncio.create_task(
-                    self.db.add_financial_statements(financial_statements)
-                )
-
-            if save_task:
-                await save_task
+                await self.db.add_financial_statements(financial_statements)
         except Exception as e:
             logger.error(f"Error updating financial statements: {e}")
         finally:
