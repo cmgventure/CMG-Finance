@@ -452,14 +452,6 @@ class FinancialStatementService:
                 if category_map.get(tag) and value.lower() == category_map[tag].lower():
                     return tag
 
-    @staticmethod
-    def choose_category(
-        categories: list[CategorySchema], taxonomy_data: dict
-    ) -> CategorySchema | None:
-        for category in categories:
-            if taxonomy_data.get(category.value_definition):
-                return category
-
     async def update_companies(self, ticker: str | None = None) -> None:
         try:
             ciks = await self.get_all_company_ciks(ticker)
@@ -572,29 +564,29 @@ class FinancialStatementService:
                 fetch_start_time = time.time()
                 categories = await self.db.get_categories_for_label(label)
 
-                category = self.choose_category(categories, taxonomy_data)
-                if not category:
-                    continue
+                for category in categories:
+                    if not taxonomy_data.get(category.value_definition):
+                        continue
 
-                concept = await self.get_company_concept(
-                    cik=cik, taxonomy=taxonomy, tag=category.value_definition
-                )
-                financial_statements = list(
-                    filter(
-                        None,
-                        self.extract_financial_statements(
-                            concept, str(category.id)
-                        ),
+                    concept = await self.get_company_concept(
+                        cik=cik, taxonomy=taxonomy, tag=category.value_definition
                     )
-                )
-                logger.info(
-                    f"Financial statements was fetched in {time.time() - fetch_start_time} seconds"
-                )
-                logger.info(
-                    f"Saving financial statements for company with CIK {cik} "
-                    f"and {len(financial_statements)} financial statements"
-                )
-                await self.db.add_financial_statements(financial_statements)
+                    financial_statements = list(
+                        filter(
+                            None,
+                            self.extract_financial_statements(
+                                concept, str(category.id)
+                            ),
+                        )
+                    )
+                    logger.info(
+                        f"Financial statements was fetched in {time.time() - fetch_start_time} seconds"
+                    )
+                    logger.info(
+                        f"Saving financial statements for company with CIK {cik} "
+                        f"and {len(financial_statements)} financial statements"
+                    )
+                    await self.db.add_financial_statements(financial_statements)
         except Exception as e:
             logger.error(f"Error updating financial statements: {e}")
         finally:
