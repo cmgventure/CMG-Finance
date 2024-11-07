@@ -20,6 +20,17 @@ const UniversalPagination: FC<UniversalPaginationProps> = ({
                                                            }) => {
     const totalPages = Math.ceil(totalItems / itemsPerPage);
 
+    const getVisiblePages = () => {
+        const pages = [];
+        const startPage = Math.max(1, currentPage - 2);
+        const endPage = Math.min(totalPages, currentPage + 2);
+
+        for (let i = startPage; i <= endPage; i++) {
+            pages.push(i);
+        }
+        return pages;
+    };
+
     const handleNextPage = () => {
         if (currentPage < totalPages) onPageChange(currentPage + 1);
     };
@@ -31,7 +42,7 @@ const UniversalPagination: FC<UniversalPaginationProps> = ({
     const handleItemsPerPageChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
         const newPageSize = Number(event.target.value);
         onItemsPerPageChange(newPageSize);
-        onPageChange(1); // Reset to first page
+        onPageChange(1);
     };
 
     return (
@@ -40,9 +51,31 @@ const UniversalPagination: FC<UniversalPaginationProps> = ({
                 <button onClick={handlePrevPage} disabled={currentPage === 1}>
                     &lt;
                 </button>
-                <span>
-                    Page {currentPage} of {totalPages}
-                </span>
+
+                {currentPage > 3 && (
+                    <>
+                        <button onClick={() => onPageChange(1)}>1</button>
+                        {currentPage > 4 && <span>...</span>}
+                    </>
+                )}
+
+                {getVisiblePages().map(page => (
+                    <button
+                        key={page}
+                        onClick={() => onPageChange(page)}
+                        className={page === currentPage ? styles.active : ''}
+                    >
+                        {page}
+                    </button>
+                ))}
+
+                {currentPage < totalPages - 2 && (
+                    <>
+                        {currentPage < totalPages - 3 && <span>...</span>}
+                        <button onClick={() => onPageChange(totalPages)}>{totalPages}</button>
+                    </>
+                )}
+
                 <button onClick={handleNextPage} disabled={currentPage === totalPages}>
                     &gt;
                 </button>

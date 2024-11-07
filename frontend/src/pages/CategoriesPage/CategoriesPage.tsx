@@ -25,10 +25,10 @@ const CategoriesPage: FC = () => {
     const [chosenCategory, setChosenCategory] = useState<ICategory | null>(null)
     const renderRow = (item: ICategory, index) => (
         <tr key={index}>
-            <td>{item.value_definition}</td>
-            <td>{item.label}</td>
-            <td>{item.description}</td>
-            <td>{item.type}</td>
+            <td className={styles.col1}>{item.value_definition}</td>
+            <td className={styles.col1}>{item.label}</td>
+            <td className={styles.col1}>{item.description}</td>
+            <td className={styles.col2}>{item.type}</td>
             <td>{item.priority}</td>
             <td>
                 <div className={styles.actionsBlock}>

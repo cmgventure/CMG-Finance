@@ -10,7 +10,7 @@ interface PrivateRouteProps {
 export const PrivateRoute: FC<PrivateRouteProps> = ({component: Component}) => {
     const isAuthenticated = useSelector((state: RootState) => state.auth.isAuth);
     if (!isAuthenticated){
-        return <Navigate to={'/admin'}/>;
+        return <Navigate to={'/'}/>;
     }
     return <Component/>;
 }

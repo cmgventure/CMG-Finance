@@ -13,7 +13,7 @@ export const Navigation: FC = () => {
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
         dispatch(setIsAuth(false));
-        window.location.href = "/admin";
+        window.location.href = "/";
     };
 
     return (
