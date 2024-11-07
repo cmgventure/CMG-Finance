@@ -46,13 +46,13 @@ class ApiHandler {
                     } catch (error) {
                         localStorage.removeItem("access_token");
                         localStorage.removeItem("refresh_token");
-                        window.location.href = "/admin";
+                        window.location.href = "/";
                         console.log(error)
                     }
                 } else {
                     // localStorage.removeItem("access_token");
                     // localStorage.removeItem("refresh_token");
-                    // window.location.href = "/admin";
+                    // window.location.href = "/";
                 }
 
                 return Promise.reject(error);

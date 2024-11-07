@@ -18,6 +18,8 @@
     width: 100%;
     box-sizing: border-box;
     transition: border-color 0.3s ease;
+    background-color: white;
+    color: black;
 
     &:focus {
       border-color: #6c63ff;

@@ -16,7 +16,7 @@ const AppRouter = () => {
             {isAuth && <Navigation/>}
             <Routes>
                 <Route path="/admin/categories" element={<PrivateRoute component={CategoriesPage}/>} />
-                <Route path="/admin" element={<PublicRoute  component={LoginPage}/>} />
+                <Route path="/" element={<PublicRoute  component={LoginPage}/>} />
             </Routes>
             <Toaster position="top-right" />
         </Router>

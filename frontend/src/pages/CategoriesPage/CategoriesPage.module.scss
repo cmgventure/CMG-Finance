@@ -70,8 +70,8 @@ td, th {
   display: flex;
   align-items: center;
   width: 100%;
-  padding: 1rem;
-  margin: 20px 0;
+  padding: 20px 0;
+  background-color: #f9fff9 !important;
 
   .createButton {
     margin-right: auto;
@@ -89,3 +89,13 @@ td, th {
   }
 }
 
+.col1 {
+  text-align: left;
+  width: 25%;
+  word-break: break-word;
+  white-space: normal;
+}
+
+.col2 {
+  text-align: left;
+}

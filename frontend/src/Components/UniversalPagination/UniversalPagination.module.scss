@@ -2,7 +2,11 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 10px 0;
+  border: 1px solid lightgrey;
+  border-radius: 5px;
+  background-color: white;
+  padding: 10px;
+  color: black;
 }
 
 .paginationControls {
@@ -20,6 +24,10 @@
 button {
   padding: 5px 10px;
   cursor: pointer;
+  border: none;
+  border-radius: 3px;
+  background-color: transparent;
+  transition: background-color 0.3s ease;
 }
 
 button:disabled {
@@ -27,6 +35,27 @@ button:disabled {
   opacity: 0.5;
 }
 
+button.active {
+  background-color: white;
+  font-weight: bold;
+  border-radius: 4px;
+  border: 1px solid  blue;
+  color: blue;
+
+  &:hover {
+    color: #66a3ff
+  }
+}
+
+
+button:not(.active):hover {
+  background-color: lightgrey;
+}
+
 select {
   padding: 5px;
+  background-color: white;
+  &:hover {
+    cursor: pointer;
+  }
 }
