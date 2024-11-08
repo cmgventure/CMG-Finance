@@ -1,6 +1,6 @@
 import enum
 from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy import select, func, Enum, String, inspect
+from sqlalchemy import select, func, Enum, String, inspect, Integer
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from uuid import UUID
@@ -50,7 +50,7 @@ async def get_categories(
     # if filter_by and filter_value are passed, filter the query by the column
     if filter_by and filter_value:
         column_attr = getattr(Category, filter_by.value)
-        if isinstance(column_attr.type, Enum):
+        if isinstance(column_attr.type, Enum) or isinstance(column_attr.type, Integer):
             base_query = base_query.filter(column_attr.cast(String).ilike(f"%{filter_value}%"))
         else:
             base_query = base_query.filter(column_attr.ilike(f"%{filter_value}%"))
