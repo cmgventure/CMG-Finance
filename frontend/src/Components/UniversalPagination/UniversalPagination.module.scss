@@ -55,6 +55,8 @@ button:not(.active):hover {
 select {
   padding: 5px;
   background-color: white;
+  border: 1px solid lightgrey;
+  border-radius: 3px;
   &:hover {
     cursor: pointer;
   }

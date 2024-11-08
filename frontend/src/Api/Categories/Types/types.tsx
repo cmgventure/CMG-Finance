@@ -4,6 +4,11 @@ export enum CategoryType {
     EXACT_VALUE = "exact_value"
 }
 
+export enum SortByType {
+    ASC = "asc",
+    DESC = "desc",
+}
+
 
 export interface ICategory {
     value_definition: string;
@@ -30,15 +35,6 @@ export interface IGetAllCategoriesResponse {
     }
 }
 
-
-// export interface IGetUserCompanyListResponse {
-//     status_code: number;
-//     detail: string;
-//     result: {
-//         companies: IUserCompanyInfo[];
-//     };
-// }
-
 export interface ICreateCategory {
     label: string,
     value_definition: string,
@@ -54,12 +50,6 @@ export interface ICategoryUpdate {
     priority: number
 }
 
-
-export interface IErrorResponse {
-    response: {
-        status: number
-    }
-}
 
 export interface DeleteResponse {
     detail: string;

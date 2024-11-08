@@ -1,7 +1,7 @@
 import {FC, useEffect, useState} from 'react';
 import styles from './CategoriesPage.module.scss';
 import Table from "~/Components/Table/Table.tsx";
-import {ICategory} from "~/Api/Categories/Types/types.tsx";
+import {ICategory, SortByType} from "~/Api/Categories/Types/types.tsx";
 import {deleteCategory, getAllCategories} from "~/Api/Categories/ApiService.ts";
 import TrashIcon from "~/Icons/TrashIcon/TrashIcon.tsx";
 import PenIcon from "~/Icons/PenIcon/PenIcon.tsx";
@@ -23,6 +23,10 @@ const CategoriesPage: FC = () => {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false)
     const [isUpdateModalOpen, setIsUpdateModalOpen] = useState<boolean>(false)
     const [chosenCategory, setChosenCategory] = useState<ICategory | null>(null)
+    const [sortOrder, setSortOrder] = useState<SortByType>(SortByType.ASC)
+    const [sortBy, setSortBy] = useState<string | null>(null)
+    const [filterBy, setFilterBy] = useState<string | null>(null)
+    const [filterValue, setfilterValue] = useState<string | null>(null)
     const renderRow = (item: ICategory, index) => (
         <tr key={index}>
             <td className={styles.col1}>{item.value_definition}</td>
@@ -62,18 +66,45 @@ const CategoriesPage: FC = () => {
         setPage(1);
     };
 
-    const fetchCategories = async (page: number, pageSize: number) => {
+    const fetchCategories = async ({
+                                       page,
+                                       pageSize,
+                                       sortBy,
+                                       sortOrder,
+                                       filterBy,
+                                       filterValue,
+                                   }: {
+        page: number;
+        pageSize: number;
+        sortBy?: string;
+        sortOrder?: SortByType;
+        filterBy?: string;
+        filterValue?: string;
+    }) => {
         setLoading(true);
-        const response = await getAllCategories(page, pageSize);
-        if (response) {
-            setCategories(response.items);
-            setTotalResults(response.total);
-        } else {
-            showToast('error', 'Error', 'Something went wrong during getting the list of categories.' +
-                ' Please try again later.');
+        try {
+            const response = await getAllCategories(page, pageSize, sortBy, sortOrder, filterBy, filterValue);
+
+            if (response) {
+                setCategories(response.items);
+                setTotalResults(response.total);
+            } else {
+                showToast(
+                    'error',
+                    'Error',
+                    'Something went wrong during getting the list of categories. Please try again later.'
+                );
+            }
+        } catch (error: unknown) {
+            if (error instanceof Error) {
+                showToast('error', 'Error', error.message);
+            } else {
+                showToast('error', 'Error', 'An unknown error occurred. Please try again later.');
+            }
         }
         setLoading(false);
     };
+
 
     const handleDeleteCategory = async () => {
         const status = await deleteCategory(chosenCategory.id);
@@ -98,8 +129,41 @@ const CategoriesPage: FC = () => {
         );
     };
 
+    const handleSort = (value: SortByType, column: string) => {
+        setSortOrder(value)
+        setSortBy(column)
+        fetchCategories({
+            page: page,
+            pageSize: pageSize,
+            sortBy: column,
+            sortOrder: value,
+            filterBy: filterBy,
+            filterValue: filterValue,
+        });
+    }
+    const handleFilter = (value: string, column: string) => {
+        setPage(1)
+        setFilterBy(column)
+        setfilterValue(value)
+        fetchCategories({
+            page: page,
+            pageSize: pageSize,
+            filterBy: column,
+            filterValue: value,
+            sortBy: sortBy,
+            sortOrder: sortOrder,
+        });
+    }
+
     useEffect(() => {
-        fetchCategories(page, pageSize);
+        fetchCategories({
+            page: page,
+            pageSize: pageSize,
+            sortBy: sortBy,
+            sortOrder: sortOrder,
+            filterBy: filterBy,
+            filterValue: filterValue
+        });
     }, [page, pageSize]);
 
     return (
@@ -109,6 +173,8 @@ const CategoriesPage: FC = () => {
                     <div className={styles.headerBlock}>
                         <div className={styles.createButton}>
                             <Button onClick={() => setIsCreateModalOpen(true)}>Create category</Button>
+                            <Button onClick={()=>window.location.reload()} variant={'inverted'}
+                            >Reset filter</Button>
                         </div>
                         <div className={styles.centerTitle}>Categories</div>
                     </div>
@@ -117,6 +183,8 @@ const CategoriesPage: FC = () => {
                             columns={columns}
                             data={categories}
                             renderRow={renderRow}
+                            onSort={handleSort}
+                            onFilter={handleFilter}
                         />
                         <UniversalPagination
                             currentPage={page}

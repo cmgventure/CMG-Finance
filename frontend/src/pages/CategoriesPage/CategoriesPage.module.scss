@@ -75,7 +75,10 @@ td, th {
 
   .createButton {
     margin-right: auto;
+    margin-left: 20px;
     z-index: 1;
+    display: flex;
+    gap: 20px
   }
 
   .centerTitle {
@@ -94,8 +97,13 @@ td, th {
   width: 25%;
   word-break: break-word;
   white-space: normal;
+  padding: 0!important;
 }
 
 .col2 {
-  text-align: left;
+  text-align: center;
+  word-break: break-word;
+  white-space: normal;
+  padding: 0!important;
+  width: 10%;
 }

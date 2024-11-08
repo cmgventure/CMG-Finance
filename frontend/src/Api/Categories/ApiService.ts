@@ -3,19 +3,42 @@ import {
     DeleteResponse,
     ICategoryUpdate,
     ICreateCategory,
-    IGetAllCategoriesResponse,
+    IGetAllCategoriesResponse, SortByType,
 } from "./Types/types";
 import ApiHandler from "../ApiHandler";
 
-export const getAllCategories = async (page: number, page_size: number) => {
+export const getAllCategories = async (
+    page: number,
+    page_size: number,
+    sort_by?: string,
+    sort_order?: SortByType,
+    filter_by?: string,
+    filter_value?: string,
+) => {
     try {
+        const params: {
+            page: number;
+            page_size: number;
+            sort_by?: string;
+            sort_order?: SortByType;
+            filter_by?: string;
+            filter_value?: string;
+        } = {
+            page,
+            page_size,
+            sort_by,
+            sort_order,
+            filter_by,
+            filter_value,
+        };
+
+        Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
+
         const response = await apiHandler.get<IGetAllCategoriesResponse>("/admin/categories", {
-            params: {
-                page,
-                page_size,
-            },
+            params
         });
-        return response.data
+
+        return response.data;
 
     } catch (error) {
         console.error('Error:', error);
@@ -50,6 +73,7 @@ export const deleteCategory= async (category_id: string) => {
             return 500;
         }
     } catch(error) {
+        console.log(error)
         return 500
     }
 }
@@ -63,6 +87,7 @@ export const updateCategory = async (category_id: string, data: ICategoryUpdate)
             return { success: false, message: 'Category updating failed', category: null };
         }
     } catch (error) {
+        console.log(error)
         return { success: false, message: 'Category updating failed' , category: null};
     }
 };
