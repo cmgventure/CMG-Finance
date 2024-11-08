@@ -1,7 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import styles from './FilterSearchHeader.module.scss';
 import { FaSearch, FaAngleUp, FaAngleDown } from 'react-icons/fa';
-import {SortByType} from "~/Api/Categories/Types/types.tsx";
+import { SortByType } from "~/Api/Categories/Types/types.tsx";
 
 interface FilterSearchHeaderProps {
     onFilter: (value: string, column: string) => void;
@@ -13,27 +13,29 @@ const FilterSearchHeader: React.FC<FilterSearchHeaderProps> = ({ onFilter, onSor
     const [isModalOpen, setModalOpen] = useState(false);
     const [filterValue, setFilterValue] = useState('');
     const searchIconRef = useRef<HTMLDivElement | null>(null);
+    const modalRef = useRef<HTMLDivElement | null>(null);  // Создаем ссылку на модалку
 
     const handleSearchClick = () => {
         setModalOpen(true);
     };
 
-    let new_column = null
+    let new_column = null;
     if (column.toLowerCase().includes('definition')) {
-        new_column = 'value_definition'
+        new_column = 'value_definition';
     } else {
-        new_column = column.toLowerCase()
+        new_column = column.toLowerCase();
     }
+
     const handleSortClick = (direction: SortByType) => {
         onSort(direction, new_column);
         setModalOpen(false);
-        setFilterValue("")
+        setFilterValue("");
     };
 
     const handleFilter = () => {
         onFilter(filterValue, new_column);
         setModalOpen(false);
-        setFilterValue("")
+        setFilterValue("");
     };
 
     const modalPosition = searchIconRef.current
@@ -42,6 +44,24 @@ const FilterSearchHeader: React.FC<FilterSearchHeaderProps> = ({ onFilter, onSor
             left: `${searchIconRef.current.offsetLeft}px`,
         }
         : { top: '0', left: '20px' };
+
+    const handleClickOutside = (event: MouseEvent) => {
+        if (modalRef.current && !modalRef.current.contains(event.target as Node) && !searchIconRef.current?.contains(event.target as Node)) {
+            setModalOpen(false);
+        }
+    };
+
+    useEffect(() => {
+        if (isModalOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        } else {
+            document.removeEventListener('mousedown', handleClickOutside);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [isModalOpen]);
 
     return (
         <div className={styles['filter-search-header']}>
@@ -57,8 +77,9 @@ const FilterSearchHeader: React.FC<FilterSearchHeaderProps> = ({ onFilter, onSor
 
             {isModalOpen && (
                 <div
+                    ref={modalRef}
                     className={styles.modal}
-                    style={{top: modalPosition.top, left: modalPosition.left}}
+                    style={{ top: modalPosition.top, left: modalPosition.left }}
                 >
                     <input
                         type="text"
@@ -67,7 +88,7 @@ const FilterSearchHeader: React.FC<FilterSearchHeaderProps> = ({ onFilter, onSor
                         placeholder={"Enter search term"}
                     />
                     <button onClick={handleFilter}>OK</button>
-                    <div className={styles.closeButton} onClick={()=>setModalOpen(false)}>X</div>
+                    <div className={styles.closeButton} onClick={() => setModalOpen(false)}>X</div>
                 </div>
             )}
         </div>

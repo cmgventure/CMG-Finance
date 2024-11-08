@@ -25,11 +25,12 @@ th{
   font-size: 14px;
 }
 td {
-  //padding: 12px 3px;
   text-align: center;
+  font-size: 14px;
+  color: #555;
   border-bottom: 1px solid #ddd;
+  padding: 12px 5px;
 }
-
 
 
 tbody tr {
@@ -42,11 +43,6 @@ tbody tr:nth-child(even) {
 
 tbody tr:hover {
   background-color: #f1f1f1;
-}
-
-td {
-  font-size: 14px;
-  color: #555;
 }
 
 .actionsBlock {
@@ -88,5 +84,4 @@ td {
 
 .headerContent span {
   width: 100%;
-  //margin-right: 16px;
 }

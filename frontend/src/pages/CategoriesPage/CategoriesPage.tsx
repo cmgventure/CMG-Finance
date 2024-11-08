@@ -6,6 +6,7 @@ import {deleteCategory, getAllCategories} from "~/Api/Categories/ApiService.ts";
 import TrashIcon from "~/Icons/TrashIcon/TrashIcon.tsx";
 import PenIcon from "~/Icons/PenIcon/PenIcon.tsx";
 import UniversalPagination from "~/Components/UniversalPagination/UniversalPagination.tsx";
+import {Loader} from "~/Components/Loader/Loader.tsx";
 import CancelDeleteModal from "~/Components/CancelDeleteModal/CancelDeleteModal.tsx";
 import {showToast} from "~/Utils/ShowToast.tsx";
 import {Button} from "~/Components/Button";
@@ -138,7 +139,7 @@ const CategoriesPage: FC = () => {
             sortBy: column,
             sortOrder: value,
             filterBy: filterBy,
-            filterValue: filterValue,
+            filterValue: filterValue
         });
     }
     const handleFilter = (value: string, column: string) => {
@@ -151,7 +152,7 @@ const CategoriesPage: FC = () => {
             filterBy: column,
             filterValue: value,
             sortBy: sortBy,
-            sortOrder: sortOrder,
+            sortOrder: sortOrder
         });
     }
 
@@ -168,7 +169,7 @@ const CategoriesPage: FC = () => {
 
     return (
         <>
-            {!loading && (
+            {loading ? <Loader/> : (
                 <>
                     <div className={styles.headerBlock}>
                         <div className={styles.createButton}>
