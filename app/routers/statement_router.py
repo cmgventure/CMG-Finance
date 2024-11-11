@@ -14,7 +14,6 @@ from app.schemas.schemas import (
 )
 from app.services.auth_service import get_current_user
 from app.services.financial_statement_service import FinancialStatementService
-from app.utils.utils import parse_financial_statement_key
 
 router = APIRouter(tags=["Statements"])
 
@@ -54,12 +53,7 @@ async def get_financial_statement_task(
             database = Database(session=db)
             service = FinancialStatementService(db=database)  # user=user
             # if force_update is True -> run API scrapper else get financial statement from DB
-            if force_update:
-                logger.warning(f"Force update for {key}")
-                parsed_key = parse_financial_statement_key(key)
-                cik = await service.update_company_if_not_exists(parsed_key.ticker)
-                await service.update_financial_statements(cik, parsed_key.category)
-            return await service.get_financial_statement_by_key(key)
+            return await service.get_financial_statement_by_key(key, force_update)
 
 
 @router.post("/financial_statement_bulk")

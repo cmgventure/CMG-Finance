@@ -68,17 +68,18 @@ class FinancialStatementService:
         self.edgar_client = EdgarClient(user_agent=self.user_agent)
 
     async def get_financial_statement(
-        self, data: FinancialStatementRequest
+        self, data: FinancialStatementRequest, force_update: bool
     ) -> FinancialStatementSchema | None:
         # gets value from db or None
-        financial_statement = (
-            await self.db.get_first_financial_statement_by_category_label(
-                ticker=data.ticker, category_label=data.category, period=data.period
+        if not force_update:
+            financial_statement = (
+                await self.db.get_first_financial_statement_by_category_label(
+                    ticker=data.ticker, category_label=data.category, period=data.period
+                )
             )
-        )
 
-        if financial_statement is not None:
-            return financial_statement
+            if financial_statement is not None:
+                return financial_statement
 
         # at this point, we didn't get any values for all the specified tags of the category (sorted by priority)
         # we need to check if there are any formula type categories and calculate the value
@@ -93,12 +94,10 @@ class FinancialStatementService:
             args=[data],
         )
 
-        return financial_statement
-
-    async def get_financial_statement_by_key(self, key: str) -> dict:
+    async def get_financial_statement_by_key(self, key: str, force_update: bool) -> dict:
         parsed_request = parse_financial_statement_key(key)
 
-        financial_statement = await self.get_financial_statement(parsed_request)
+        financial_statement = await self.get_financial_statement(parsed_request, force_update)
         value = financial_statement.value if financial_statement else 0
 
         return {key: value}
@@ -550,20 +549,22 @@ class FinancialStatementService:
 
             custom_formula_operands = []
 
+            categories = await self.db.get_categories_for_label(label)
+
+            for category in categories:
+                if category.type == CategoryDefinitionType.custom_formula:
+                    formula_operands = re.findall(
+                        pattern=settings.CUSTOM_FORMULA_OPERAND_PATTERN,
+                        string=category.value_definition,
+                        flags=re.IGNORECASE
+                    )
+                    custom_formula_operands.extend(formula_operands)
+                    continue
+
             for taxonomy, taxonomy_data in facts.items():
                 fetch_start_time = time.time()
-                categories = await self.db.get_categories_for_label(label)
 
                 for category in categories:
-
-                    if category.type == CategoryDefinitionType.custom_formula:
-                        formula_operands = re.findall(
-                            pattern=settings.CUSTOM_FORMULA_OPERAND_PATTERN,
-                            string=category.value_definition,
-                            flags=re.IGNORECASE
-                        )
-                        custom_formula_operands.extend(formula_operands)
-                        continue
 
                     if not taxonomy_data.get(category.value_definition):
                         continue
