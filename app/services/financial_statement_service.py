@@ -23,6 +23,7 @@ from app.schemas.schemas import (
     FinancialStatementSchema,
     calculation_map,
     category_map,
+    User
 )
 from app.services.scheduler import scheduler_service
 from app.utils.utils import parse_financial_statement_key
@@ -62,9 +63,9 @@ class FinancialStatementService:
     companies_update_task: asyncio.Task | None = None
     financial_statements_update_task: asyncio.Task | None = None
 
-    def __init__(self, db: Database) -> None:
+    def __init__(self, db: Database, user: User) -> None:
         self.db = db
-        self.user_agent = "dima.dzyubenko@meduzzen.com"
+        self.user_agent = user.email
         self.edgar_client = EdgarClient(user_agent=self.user_agent)
 
     async def get_financial_statement(

@@ -26,25 +26,8 @@ async def start_companies_update(
         )
 
     database = Database(session=db)
-    parser = FinancialStatementService(db=database)
+    parser = FinancialStatementService(db=database, user=current_user)
     return await parser.start_companies_update(data.ticker)
-
-
-# @router.post("/update/financial_statements")
-# async def start_financial_statements_update(
-#     db: AsyncSession = Depends(get_db),
-#     current_user: User = Depends(get_current_user),
-# ):
-#     if not current_user.superuser:
-#         logger.error("Access Denied, user is not a superuser")
-#         raise HTTPException(
-#             status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied"
-#         )
-#
-#     database = Database(session=db)
-#     parser = FinancialStatementService(db=database)
-#
-#     return await parser.start_financial_statements_update()
 
 
 @router.get("/stop/companies")

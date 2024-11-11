@@ -123,6 +123,7 @@ class User(BaseModel):
     email: str
     subscription: dict | None = None
     superuser: bool = False
+    password_hash: str | None = None
 
 
 class FinancialStatementRequest(BaseModel, str_strip_whitespace=True):
