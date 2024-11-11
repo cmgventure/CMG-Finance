@@ -71,7 +71,11 @@ class Category(Base):
     type = Column(Enum(CategoryDefinitionType), nullable=True, default=CategoryDefinitionType.api_tag)
     priority = Column(Integer, nullable=False, default=1)
 
-    financial_statements = relationship("FinancialStatement", back_populates="category")
+    financial_statements = relationship(
+        "FinancialStatement",
+        back_populates="category",
+        cascade="save-update, merge, delete, delete-orphan",
+    )
 
 
 class FinancialStatement(Base):
