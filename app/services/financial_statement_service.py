@@ -156,23 +156,12 @@ class FinancialStatementService:
             category_record.type == CategoryDefinitionType.custom_formula
             and category_record.value_definition
         ):
-            # parse the formula string
-
-            # Operands can be words separated by spaces, hyphens, or underscores.
-            # They can also be integers or floating-point numbers with a . symbol
-            operand_pattern = (
-                r"(?:\b[a-zA-Z_]+(?:[\s_-][a-zA-Z_]+)*\b|\b\d+(?:\.\d+)?\b)"
-            )
-
-            # Operators can be (+) or (-) symbols
-            operator_pattern = r"\(\+\)|\(\-\)"
-
-            # extract operands and operators from the formula
+            # parse the formula string, extract operands and operators from the formula string
             formula_operands = re.findall(
-                operand_pattern, category_record.value_definition, re.IGNORECASE
+                settings.CUSTOM_FORMULA_OPERAND_PATTERN, category_record.value_definition, re.IGNORECASE
             )
             formula_operators = re.findall(
-                operator_pattern, category_record.value_definition, re.IGNORECASE
+                settings.CUSTOM_FORMULA_OPERATOR_PATTERN, category_record.value_definition, re.IGNORECASE
             )
 
             # get values for each operand - human-readable category titles
@@ -337,9 +326,7 @@ class FinancialStatementService:
             except Exception as e:
                 logger.error(f"Error fetching company submissions for CIK {cik}: {e}")
 
-    async def get_company_concept(
-        self, cik: str, taxonomy: str, tag: str
-    ) -> dict | None:
+    async def get_company_concept(self, cik: str, taxonomy: str, tag: str) -> dict | None:
         async with self.semaphore:
             try:
                 response = await asyncio.to_thread(
@@ -554,23 +541,34 @@ class FinancialStatementService:
     async def update_financial_statements(self, cik: str, label: str) -> None:
         try:
             facts = await self.get_company_facts(cik=cik)
+
             if not facts:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="No facts for category label",
                 )
 
+            custom_formula_operands = []
+
             for taxonomy, taxonomy_data in facts.items():
                 fetch_start_time = time.time()
                 categories = await self.db.get_categories_for_label(label)
 
                 for category in categories:
+
+                    if category.type == CategoryDefinitionType.custom_formula:
+                        formula_operands = re.findall(
+                            pattern=settings.CUSTOM_FORMULA_OPERAND_PATTERN,
+                            string=category.value_definition,
+                            flags=re.IGNORECASE
+                        )
+                        custom_formula_operands.extend(formula_operands)
+                        continue
+
                     if not taxonomy_data.get(category.value_definition):
                         continue
 
-                    concept = await self.get_company_concept(
-                        cik=cik, taxonomy=taxonomy, tag=category.value_definition
-                    )
+                    concept = await self.get_company_concept(cik=cik, taxonomy=taxonomy, tag=category.value_definition)
                     financial_statements = list(
                         filter(
                             None,
@@ -587,6 +585,12 @@ class FinancialStatementService:
                         f"and {len(financial_statements)} financial statements"
                     )
                     await self.db.add_financial_statements(financial_statements)
+
+            custom_formula_operands = list(set(custom_formula_operands))
+            if custom_formula_operands:
+                for operand in custom_formula_operands:
+                    await self.update_financial_statements(cik=cik, label=operand)
+
         except Exception as e:
             logger.error(f"Error updating financial statements: {e}")
         finally:

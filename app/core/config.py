@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     AWSLOGS_GROUP: str
     AWSLOGS_STREAM: str
 
+    # Operands can be words separated by spaces, hyphens, or underscores.
+    # They can also be integers or floating-point numbers with a . symbol
+    CUSTOM_FORMULA_OPERAND_PATTERN: str = r"(?:\b[a-zA-Z_]+(?:[\s_-][a-zA-Z_]+)*\b|\b\d+(?:\.\d+)?\b)"
+    # Operators can be (+) or (-) symbols
+    CUSTOM_FORMULA_OPERATOR_PATTERN: str = r"\(\+\)|\(\-\)"
+
     @property
     def postgres_url(self):
         return (

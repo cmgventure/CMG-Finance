@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Sequence
 
 from loguru import logger
-from sqlalchemy import Result, asc, desc, select
+from sqlalchemy import Result, asc, desc, select, func
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -201,12 +201,12 @@ class Database:
 
         return financial_statement
 
-    async def get_categories_for_label(
-        self, category_label: str, only_formulas: bool = False
-    ) -> list[CategorySchema]:
+    async def get_categories_for_label(self, category_label: str, only_formulas: bool = False) -> list[CategorySchema]:
         stmt = (
             select(Category)
-            .where(Category.label == category_label)
+            .where(
+                func.lower(Category.label).ilike(f"%{category_label.lower()}%")
+            )
             .order_by(Category.priority)
         )
 
@@ -241,7 +241,7 @@ class Database:
                 Company.ticker == ticker,
                 FinancialStatement.period == period,
                 FinancialStatement.report_date >= report_date,
-                Category.label == category_label,
+                func.lower(Category.label).ilike(f"%{category_label.lower()}%"),
                 FinancialStatement.value.isnot(None),
             )
             .order_by(
