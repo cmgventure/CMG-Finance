@@ -130,6 +130,9 @@ async def delete_category(
     db_category = (await db.execute(select(Category).filter(Category.id == category_id))).scalars().first()
     if not db_category:
         raise HTTPException(status_code=404, detail="Category not found")
-    await db.delete(db_category)
-    await db.commit()
+    try:
+        await db.delete(db_category)
+        await db.commit()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Invalid data: {e}")
     return {"detail": "Category deleted successfully"}
