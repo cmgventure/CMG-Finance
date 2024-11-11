@@ -66,7 +66,7 @@ export const createCategory = async (data: ICreateCategory) => {
 
 export const deleteCategory= async (category_id: string) => {
     try {
-        const response = await ApiHandler.delete<DeleteResponse>(`/admin/categories/${category_id}/`)
+        const response = await ApiHandler.delete<DeleteResponse>(`/admin/categories/${category_id}`)
         if (response.status === 200) {
             return response.status;
         } else {
