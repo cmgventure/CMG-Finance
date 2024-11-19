@@ -26,9 +26,7 @@ async def get_statement(
 ) -> float | None:
     if not current_user.subscription and not current_user.superuser:
         logger.error("Access Denied, user is not a superuser")
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied")
 
     logger.info(f"Accept request for {data.ticker} {data.category} {data.period}")
     start = time.time()
@@ -39,9 +37,7 @@ async def get_statement(
     value = financial_statement.value if financial_statement else None
 
     end = time.time()
-    logger.info(
-        f"TIME {end-start}. Return value for {data.ticker} {data.category} {data.period}: {value}"
-    )
+    logger.info(f"TIME {end-start}. Return value for {data.ticker} {data.category} {data.period}: {value}")
     return value
 
 

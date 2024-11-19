@@ -1,7 +1,7 @@
 from enum import StrEnum
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 category_map = {
@@ -136,20 +136,8 @@ class FinancialStatementsRequest(BaseModel, str_strip_whitespace=True):
     data: list[str]
 
 
-class FinancialStatementsUpdateRequest(BaseModel, str_strip_whitespace=True):
-    ticker: str | None = None
-    category: str | None = None
-
-
 class CompaniesUpdateRequest(BaseModel, str_strip_whitespace=True):
     ticker: str | None = None
-
-
-class FinancialStatementResponse(BaseModel, str_strip_whitespace=True):
-    ticker: str
-    category: str
-    period: str
-    value: int | float | None = None
 
 
 class FinancialStatementSchema(BaseModel):
@@ -164,6 +152,18 @@ class FinancialStatementSchema(BaseModel):
 
     class Config:
         from_attributes = True
+
+    @field_validator("value", mode="before")
+    @classmethod
+    def convert_value(cls, value):
+        if value is None:
+            return None
+
+        if isinstance(value, str) and value.startswith("$"):
+            # Remove '$' and ',' then convert to float
+            return float(value.replace("$", "").replace(",", ""))
+
+        return float(value)
 
 
 class CategoryBaseSchema(BaseModel):

@@ -148,9 +148,7 @@ class Database:
 
         return period
 
-    async def add_financial_statement(
-        self, financial_statement: FinancialStatementSchema
-    ) -> None:
+    async def add_financial_statement(self, financial_statement: FinancialStatementSchema) -> None:
         try:
             financial_statement = financial_statement.model_dump()
             stmt = (
@@ -190,9 +188,7 @@ class Database:
             logger.error(f"Error adding financial statements: {e}")
             await self.session.rollback()
 
-    async def update_category_value(
-        self, financial_statement: FinancialStatementSchema
-    ) -> FinancialStatementSchema:
+    async def update_category_value(self, financial_statement: FinancialStatementSchema) -> FinancialStatementSchema:
         try:
             await self.add_financial_statement(financial_statement)
         except Exception as e:
@@ -268,7 +264,10 @@ class Database:
         return None
 
     async def get_financial_statement_by_category_tag(
-        self, ticker: str, value_definition_tag: str, period: str
+        self,
+        ticker: str,
+        value_definition_tag: str,
+        period: str
     ) -> FinancialStatementSchema | None:
         period = self.apply_fiscal_period_patterns(period)
         report_date = f"{period.split()[1]}-01-01"

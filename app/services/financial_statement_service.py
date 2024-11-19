@@ -190,29 +190,18 @@ class FinancialStatementService:
                 formula_namespace[formula_operand] = formula_operand_financial_statement
 
             # if there are missing values, we can't calculate the formula correctly
-            if not all(financial_statements) or not all(
-                [fs.value for fs in financial_statements if fs is not None]
-            ):
-                logger.error(
-                    f"Missing values. Unable to calculate value for category definition {category_record}"
-                )
+            if not all(financial_statements) or not all([fs.value for fs in financial_statements if fs is not None]):
+                logger.error(f"Missing values. Unable to calculate value for category definition {category_record}")
                 return None
 
             # convert operators to 1 or -1 for addition or subtraction respectively
-            formula_converted_operators = [
-                1 if operator_str == "(+)" else -1 for operator_str in formula_operators
-            ]
+            formula_converted_operators = [1 if operator_str == "(+)" else -1 for operator_str in formula_operators]
 
             # apply the operators to the operands
             for i in range(len(formula_converted_operators)):
                 financial_statements[i + 1].value *= formula_converted_operators[i]
 
-            value = sum(
-                [
-                    financial_statement.value
-                    for financial_statement in financial_statements
-                ]
-            )
+            value = sum([financial_statement.value for financial_statement in financial_statements])
 
             # We have to return a new FinancialStatement object with the calculated value.
             # For this, we will take the first financial statement object and update its value,
@@ -231,9 +220,7 @@ class FinancialStatementService:
             raise NotImplementedError("Exact value type is not implemented yet")
 
         else:
-            logger.error(
-                f"Unable to calculate value for category definition {category_record}"
-            )
+            logger.error(f"Unable to calculate value for category definition {category_record}")
             return None
 
     async def calculate_financial_statement(
@@ -274,9 +261,7 @@ class FinancialStatementService:
 
             return await self.db.update_category_value(financial_statement)
 
-        logger.error(
-            f"Unable to calculate value for any formula for category {data.category}"
-        )
+        logger.error(f"Unable to calculate value for any formula for category {data.category}")
 
         return None
 
@@ -413,7 +398,7 @@ class FinancialStatementService:
                         "report_date": financial_statement["end"],
                         "filing_date": financial_statement["filed"],
                         "form": financial_statement["form"],
-                        "value": financial_statement["val"],
+                        "value": str(financial_statement["val"]),  # convert to string since the database type is MONEY
                         "category_id": category_id,
                     }
                     financial_statements.append(data)
@@ -442,8 +427,10 @@ class FinancialStatementService:
     async def update_companies(self, ticker: str | None = None) -> None:
         try:
             ciks = await self.get_all_company_ciks(ticker)
+
             if not ciks:
                 return
+
             logger.info(f"CIKs found for {len(ciks)} companies")
 
             saved_ciks = await self.db.get_company_ciks()
@@ -456,9 +443,8 @@ class FinancialStatementService:
                     self.get_company_submissions(cik=cik)
                     for cik in new_ciks[i : settings.COUNTER + i]
                 ]
-                logger.info(
-                    f"Fetching data for {len(new_ciks[i:settings.COUNTER + i])} companies"
-                )
+
+                logger.info(f"Fetching data for {len(new_ciks[i:settings.COUNTER + i])} companies")
 
                 submissions_list = list(filter(None, await asyncio.gather(*tasks)))
                 companies = list(
@@ -470,21 +456,22 @@ class FinancialStatementService:
                         ],
                     )
                 )
-                logger.info(
-                    f"Company data was fetched in {time.time() - fetch_start_time} seconds"
-                )
+
+                logger.info(f"Company data was fetched in {time.time() - fetch_start_time} seconds")
 
                 if save_task:
                     await save_task
-                logger.info(
-                    f"Saving data for {len(new_ciks[i:settings.COUNTER + i])} companies"
-                )
+
+                logger.info(f"Saving data for {len(new_ciks[i:settings.COUNTER + i])} companies")
+
                 save_task = asyncio.create_task(self.db.add_companies(companies))
 
             if save_task:
                 await save_task
+
         except Exception as e:
             logger.error(f"Error updating companies: {e}")
+
         finally:
             logger.info("Finished updating companies")
 
@@ -543,10 +530,7 @@ class FinancialStatementService:
             facts = await self.get_company_facts(cik=cik)
 
             if not facts:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="No facts for category label",
-                )
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No facts for category label")
 
             custom_formula_operands = []
 
@@ -574,14 +558,10 @@ class FinancialStatementService:
                     financial_statements = list(
                         filter(
                             None,
-                            self.extract_financial_statements(
-                                concept, str(category.id)
-                            ),
+                            self.extract_financial_statements(concept, str(category.id)),
                         )
                     )
-                    logger.info(
-                        f"Financial statements was fetched in {time.time() - fetch_start_time} seconds"
-                    )
+                    logger.info(f"Financial statements was fetched in {time.time() - fetch_start_time} seconds")
                     logger.info(
                         f"Saving financial statements for company with CIK {cik} "
                         f"and {len(financial_statements)} financial statements"

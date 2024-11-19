@@ -15,6 +15,7 @@ from sqlalchemy import (
     UUID,
 )
 from sqlalchemy.orm import relationship
+from sqlalchemy.dialects.postgresql import MONEY
 
 from app.database.base_class import Base
 from app.schemas.schemas import FulfillmentStatus, SubscriptionType, CategoryDefinitionType
@@ -53,6 +54,9 @@ class Company(Base):
     business_address = Column(String)
     mailing_address = Column(String)
     phone = Column(String)
+    sector = Column(String)
+    industry = Column(String)
+    country = Column(String)
 
     financial_statements = relationship("FinancialStatement", back_populates="company")
 
@@ -86,7 +90,7 @@ class FinancialStatement(Base):
     report_date = Column(String, primary_key=True)
 
     form = Column(String)
-    value = Column(Float)
+    value = Column(MONEY)
 
     cik = Column(String, ForeignKey("companies.cik"), primary_key=True)
     category_id = Column(UUID(as_uuid=True), ForeignKey("categories.id"), primary_key=True)
