@@ -21,9 +21,7 @@ async def start_companies_update(
 ):
     if not current_user.superuser:
         logger.error("Access Denied, user is not a superuser")
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied")
 
     database = Database(session=db)
     parser = FinancialStatementService(db=database, user=current_user)
@@ -34,9 +32,7 @@ async def start_companies_update(
 async def stop_companies_update(current_user: User = Depends(get_current_user)):
     if not current_user.superuser:
         logger.error("Access Denied, user is not a superuser")
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied")
 
     if not FinancialStatementService.companies_update_task:
         return "Companies are not updated."
@@ -54,9 +50,7 @@ async def stop_financial_statements_update(
 ):
     if not current_user.superuser:
         logger.error("Access Denied, user is not a superuser")
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied")
 
     if not FinancialStatementService.financial_statements_update_task:
         return "Financial statements are not updated."
@@ -82,13 +76,9 @@ async def check_update_tasks(current_user: User = Depends(get_current_user)):
 
     if not current_user.superuser:
         logger.error("Access Denied, user is not a superuser")
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied")
 
     return {
         "companies_update": get_status(FinancialStatementService.companies_update_task),
-        "financial_statements_update": get_status(
-            FinancialStatementService.financial_statements_update_task
-        ),
+        "financial_statements_update": get_status(FinancialStatementService.financial_statements_update_task),
     }

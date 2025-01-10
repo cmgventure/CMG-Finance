@@ -1,19 +1,20 @@
 import enum
-from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy import select, func, Enum, String, inspect, Integer
-from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import Enum, Integer, String, func, inspect, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
 from app.core.connection import get_db
-from app.database.models import Category, User
+from app.database.models import FMPCategory, User
 from app.schemas.schemas import CategoryCreateSchema, CategoryUpdateSchema
 from app.services.auth_service import get_current_user
 
 categories_router = APIRouter(tags=["Admin Categories"])
 
 
-column_names = [column.name for column in inspect(Category).columns]
+column_names = [column.name for column in inspect(FMPCategory).columns]
 CategoryColumns = enum.Enum("CategoryColumns", {name: name for name in column_names})
 
 
@@ -31,25 +32,25 @@ async def get_categories(
     filter_by: CategoryColumns | None = None,
     filter_value: str | None = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     # set the offset to start from
     offset = (page - 1) * page_size
 
     # create a base select query
-    base_query = select(Category)
+    base_query = select(FMPCategory)
     # select_query = select(Category).offset(offset).limit(page_size)
 
     # if sort_by is passed, sort the query by the column
     if sort_by:
         if sort_order == "desc":
-            base_query = base_query.order_by(getattr(Category, sort_by.value).desc())
+            base_query = base_query.order_by(getattr(FMPCategory, sort_by.value).desc())
         else:
-            base_query = base_query.order_by(getattr(Category, sort_by.value))
+            base_query = base_query.order_by(getattr(FMPCategory, sort_by.value))
 
     # if filter_by and filter_value are passed, filter the query by the column
     if filter_by and filter_value:
-        column_attr = getattr(Category, filter_by.value)
+        column_attr = getattr(FMPCategory, filter_by.value)
         if isinstance(column_attr.type, Enum) or isinstance(column_attr.type, Integer):
             base_query = base_query.filter(column_attr.cast(String).ilike(f"%{filter_value}%"))
         else:
@@ -68,11 +69,9 @@ async def get_categories(
 
 @categories_router.get("/categories/{category_id}")
 async def get_category(
-    category_id: UUID,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    category_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
-    category = (await db.execute(select(Category).filter(Category.id == category_id))).scalar()
+    category = (await db.execute(select(FMPCategory).filter(FMPCategory.id == category_id))).scalar()
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
     return category
@@ -80,11 +79,9 @@ async def get_category(
 
 @categories_router.post("/categories")
 async def create_category(
-    category: CategoryCreateSchema,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    category: CategoryCreateSchema, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
-    db_category = Category(**category.dict())
+    db_category = FMPCategory(**category.dict())
     db.add(db_category)
     try:
         await db.commit()
@@ -99,9 +96,9 @@ async def update_category(
     category_id: UUID,
     category: CategoryUpdateSchema,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
-    db_category = (await db.execute(select(Category).filter(Category.id == category_id))).scalars().first()
+    db_category = (await db.execute(select(FMPCategory).filter(FMPCategory.id == category_id))).scalars().first()
 
     if not db_category:
         raise HTTPException(status_code=404, detail="Category not found")
@@ -123,11 +120,9 @@ async def update_category(
 
 @categories_router.delete("/categories/{category_id}")
 async def delete_category(
-    category_id: UUID,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    category_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
-    db_category = (await db.execute(select(Category).filter(Category.id == category_id))).scalars().first()
+    db_category = (await db.execute(select(FMPCategory).filter(FMPCategory.id == category_id))).scalars().first()
     if not db_category:
         raise HTTPException(status_code=404, detail="Category not found")
     try:

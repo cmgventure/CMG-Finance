@@ -3,23 +3,12 @@ from datetime import datetime
 from typing import Sequence
 
 from loguru import logger
-from sqlalchemy import Result, asc, desc, select, func
+from sqlalchemy import Result, asc, desc, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database.models import (
-    Category,
-    CategoryDefinitionType,
-    Company,
-    FinancialStatement,
-    Subscription,
-    User,
-)
-from app.schemas.schemas import (
-    CategoryBaseSchema,
-    CategorySchema,
-    FinancialStatementSchema,
-)
+from app.database.models import Category, CategoryDefinitionType, Company, FinancialStatement, Subscription, User
+from app.schemas.schemas import CategoryBaseSchema, CategorySchema, FinancialStatementSchema
 
 
 class Database:
@@ -31,9 +20,7 @@ class Database:
             stmt = (
                 insert(Subscription)
                 .values(subscription)
-                .on_conflict_do_update(
-                    index_elements=["id", "user_id"], set_=subscription
-                )
+                .on_conflict_do_update(index_elements=["id", "user_id"], set_=subscription)
             )
             await self.session.execute(stmt)
             await self.session.commit()
@@ -47,6 +34,7 @@ class Database:
                 select(Subscription)
                 .join(User)
                 .where(
+                    Subscription.user_id == user_id,
                     Subscription.expired_at > datetime.utcnow(),
                 )
                 .order_by(desc(Subscription.created_at))
@@ -76,11 +64,7 @@ class Database:
 
     async def add_company(self, company: dict) -> None:
         try:
-            stmt = (
-                insert(Company)
-                .values(company)
-                .on_conflict_do_update(index_elements=["cik"], set_=company)
-            )
+            stmt = insert(Company).values(company).on_conflict_do_update(index_elements=["cik"], set_=company)
             await self.session.execute(stmt)
             await self.session.commit()
         except Exception as e:
@@ -90,11 +74,7 @@ class Database:
     async def add_companies(self, companies: list[dict]) -> None:
         try:
             for company in companies:
-                stmt = (
-                    insert(Company)
-                    .values(company)
-                    .on_conflict_do_update(index_elements=["cik"], set_=company)
-                )
+                stmt = insert(Company).values(company).on_conflict_do_update(index_elements=["cik"], set_=company)
                 await self.session.execute(stmt)
             await self.session.commit()
         except Exception as e:
@@ -120,11 +100,7 @@ class Database:
     async def add_categories(self, categories: list[CategoryBaseSchema]):
         try:
             for category in categories:
-                stmt = (
-                    insert(Category)
-                    .values(category.model_dump())
-                    .on_conflict_do_nothing()
-                )
+                stmt = insert(Category).values(category.model_dump()).on_conflict_do_nothing()
                 await self.session.execute(stmt)
             await self.session.commit()
         except Exception as e:
@@ -200,16 +176,12 @@ class Database:
     async def get_categories_for_label(self, category_label: str, only_formulas: bool = False) -> list[CategorySchema]:
         stmt = (
             select(Category)
-            .where(
-                func.lower(Category.label).ilike(f"%{category_label.lower()}%")
-            )
+            .where(func.lower(Category.label).ilike(f"%{category_label.lower()}%"))
             .order_by(Category.priority)
         )
 
         if only_formulas:
-            stmt = stmt.where(
-                Category.type == CategoryDefinitionType.custom_formula.name
-            )
+            stmt = stmt.where(Category.type == CategoryDefinitionType.custom_formula.name)
 
         result = await self.session.execute(stmt)
 
@@ -255,19 +227,14 @@ class Database:
         category_label: str,
         period: str,
     ) -> FinancialStatementSchema | None:
-        result = await self._get_financial_statement_by_category_tag(
-            ticker, category_label, period
-        )
+        result = await self._get_financial_statement_by_category_tag(ticker, category_label, period)
         obj = result.scalars().first()
         if obj:
             return FinancialStatementSchema.model_validate(obj)
         return None
 
     async def get_financial_statement_by_category_tag(
-        self,
-        ticker: str,
-        value_definition_tag: str,
-        period: str
+        self, ticker: str, value_definition_tag: str, period: str
     ) -> FinancialStatementSchema | None:
         period = self.apply_fiscal_period_patterns(period)
         report_date = f"{period.split()[1]}-01-01"

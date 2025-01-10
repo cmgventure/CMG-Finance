@@ -15,9 +15,7 @@ engine = create_async_engine(
     pool_size=100,
     max_overflow=10,
 )
-async_session = async_sessionmaker(
-    bind=engine, class_=AsyncSession, expire_on_commit=False
-)
+async_session = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
 semaphore = asyncio.Semaphore(50)
 
 

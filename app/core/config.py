@@ -16,6 +16,7 @@ class Settings(BaseSettings):
 
     SQUARESPACE_API_KEY: str
     STRIPE_API_KEY: str
+    FMP_API_KEY: str
 
     JWT_SECRET_KEY: str
     ALGORITHM: str = "HS256"

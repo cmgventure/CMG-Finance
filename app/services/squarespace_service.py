@@ -53,9 +53,7 @@ class SquarespaceService:
         params = {"filter": f"email,{user_email}"}
 
         async with aiohttp.ClientSession() as session:
-            async with session.get(
-                url=url, params=params, headers=self.default_headers
-            ) as response:
+            async with session.get(url=url, params=params, headers=self.default_headers) as response:
                 data = await response.json()
                 return data["profiles"][0]
 
@@ -84,10 +82,8 @@ class SquarespaceService:
     async def save_user(self, user_email: str) -> str:
         profile = await self.get_profile(user_email)
         if not profile:
-            logger.error(f"User profile not found")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-            )
+            logger.error("User profile not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
         user = {"id": profile["id"], "email": profile["email"]}
 
@@ -95,9 +91,7 @@ class SquarespaceService:
 
         return profile["id"]
 
-    async def save_subscription(
-        self, user_id: str, order: dict, transaction: dict | None = None
-    ) -> None:
+    async def save_subscription(self, user_id: str, order: dict, transaction: dict | None = None) -> None:
         subscription_type = self.get_product(
             order["lineItems"][0]["productId"],
             float(order["lineItems"][0]["unitPricePaid"]["value"]),
@@ -105,9 +99,7 @@ class SquarespaceService:
         fulfillment_status = FulfillmentStatus(order["fulfillmentStatus"])
         created_at = datetime.strptime(order["createdOn"], "%Y-%m-%dT%H:%M:%S.%fZ")
         if created_at.microsecond > 999:
-            created_at = created_at.replace(
-                microsecond=int(created_at.microsecond / 1000)
-            )
+            created_at = created_at.replace(microsecond=int(created_at.microsecond / 1000))
 
         if subscription_type is SubscriptionType.Free:
             timedelta = relativedelta(weeks=1)
@@ -158,7 +150,7 @@ class SquarespaceService:
         )
 
         if subscription_type == SubscriptionType.Free:
-            if await self.db.get_subscription(event_order["customerEmail"]):
+            if await self.db.get_subscription(user_id):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Free trial already used",
@@ -198,9 +190,7 @@ class SquarespaceService:
         }
 
         async with aiohttp.ClientSession() as session:
-            async with session.post(
-                url=url, json=payload, headers=self.default_headers
-            ) as response:
+            async with session.post(url=url, json=payload, headers=self.default_headers) as response:
                 if response.status not in [200, 204]:
                     text = await response.text()
                     logger.info(text)

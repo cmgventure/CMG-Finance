@@ -2,23 +2,22 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
-    UniqueConstraint,
+    UUID,
     Boolean,
     CheckConstraint,
     Column,
     DateTime,
     Enum,
-    Float,
     ForeignKey,
     Integer,
     String,
-    UUID,
+    UniqueConstraint,
 )
-from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import MONEY
+from sqlalchemy.orm import relationship
 
 from app.database.base_class import Base
-from app.schemas.schemas import FulfillmentStatus, SubscriptionType, CategoryDefinitionType
+from app.schemas.schemas import CategoryDefinitionType, FulfillmentStatus, SubscriptionType
 
 
 class User(Base):
@@ -59,6 +58,7 @@ class Company(Base):
     country = Column(String)
 
     financial_statements = relationship("FinancialStatement", back_populates="company")
+    fmp_statements = relationship("FMPStatement", back_populates="company")
 
 
 class Category(Base):
@@ -68,7 +68,9 @@ class Category(Base):
         UniqueConstraint("label", "value_definition", "type", name="uq_label_value_definition_type"),
     )
 
-    id = Column(UUID(as_uuid=True), primary_key=True, index=True, default=uuid.uuid4, server_default="gen_random_uuid()")
+    id = Column(
+        UUID(as_uuid=True), primary_key=True, index=True, default=uuid.uuid4, server_default="gen_random_uuid()"
+    )
     label = Column(String)
     value_definition = Column(String)
     description = Column(String, nullable=True)
@@ -97,3 +99,44 @@ class FinancialStatement(Base):
 
     company = relationship("Company", back_populates="financial_statements")
     category = relationship("Category", back_populates="financial_statements")
+
+
+class FMPCategory(Base):
+    __tablename__ = "fmp_categories"
+    __table_args__ = (
+        CheckConstraint("priority >= 1"),
+        UniqueConstraint("label", "value_definition", name="uq_label_value_definition"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, index=True, default=uuid.uuid4)
+    label = Column(String)
+    value_definition = Column(String)
+    description = Column(String, nullable=True)
+    type = Column(
+        Enum(CategoryDefinitionType, name="fmpcategorydefinitiontype"),
+        nullable=True,
+        default=CategoryDefinitionType.api_tag,
+    )
+    priority = Column(Integer, nullable=False, default=1)
+
+    fmp_statements = relationship(
+        "FMPStatement",
+        back_populates="fmp_category",
+        cascade="save-update, merge, delete, delete-orphan",
+    )
+
+
+class FMPStatement(Base):
+    __tablename__ = "fmp_statements"
+
+    period = Column(String, primary_key=True)
+    filing_date = Column(String, primary_key=True)
+    report_date = Column(String, primary_key=True)
+
+    value = Column(MONEY)
+
+    cik = Column(String, ForeignKey("companies.cik"), primary_key=True)
+    category_id = Column(UUID(as_uuid=True), ForeignKey("fmp_categories.id"), primary_key=True)
+
+    company = relationship("Company", back_populates="fmp_statements")
+    fmp_category = relationship("FMPCategory", back_populates="fmp_statements")

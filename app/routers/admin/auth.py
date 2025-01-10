@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException, Depends, status
-from sqlalchemy import select
-from sqlalchemy.orm import Session
-from passlib.context import CryptContext
-from jose import jwt, JWTError
 from datetime import datetime, timedelta
 from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.connection import get_db
@@ -48,9 +49,7 @@ async def login_for_access_token(credentials: UserLoginSchema, db: Session = Dep
             headers={"WWW-Authenticate": "Bearer"},
         )
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.email}, expires_delta=access_token_expires
-    )
+    access_token = create_access_token(data={"sub": user.email}, expires_delta=access_token_expires)
     refresh_token = create_access_token(data={"sub": user.email}, expires_delta=timedelta(days=7))
     return {"access_token": access_token, "refresh_token": refresh_token}
 
