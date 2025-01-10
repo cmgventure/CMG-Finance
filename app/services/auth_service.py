@@ -2,14 +2,14 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from google.auth.transport import requests
 from google.oauth2 import id_token
+from jose import ExpiredSignatureError, JWTError, jwt
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
-from jose import jwt, JWTError, ExpiredSignatureError
 
 from app.core.config import settings
 from app.core.connection import get_db
 from app.database.database import Database
-from app.schemas.schemas import User
+from app.schemas.schemas import Subscription, User
 
 token_auth_scheme = HTTPBearer()
 
@@ -23,10 +23,10 @@ async def verify_token(token: str) -> str:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
         return user_email
     except ExpiredSignatureError:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Token has expired",
-            )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Token has expired",
+        )
     except JWTError:
         # If the token is not a valid custom JWT, try verifying it as a Google token
         try:
@@ -57,12 +57,10 @@ async def get_current_user(
     user = await database.get_user(user_email)
     if not user:
         logger.error(f"User not found with email: {user_email}")
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-        )
-    user_subscription = await database.get_subscription(user)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    user_subscription = await database.get_subscription(user.id)
     if user_subscription:
-        user_subscription = user_subscription.__dict__
+        user_subscription = Subscription.model_validate(user_subscription.__dict__)
 
     return User(
         id=user.id,

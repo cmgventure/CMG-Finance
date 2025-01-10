@@ -21,9 +21,9 @@ from app.schemas.schemas import (
     CategorySchema,
     FinancialStatementRequest,
     FinancialStatementSchema,
+    User,
     calculation_map,
     category_map,
-    User
 )
 from app.services.scheduler import scheduler_service
 from app.utils.utils import parse_financial_statement_key
@@ -73,10 +73,8 @@ class FinancialStatementService:
     ) -> FinancialStatementSchema | None:
         # gets value from db or None
         if not force_update:
-            financial_statement = (
-                await self.db.get_first_financial_statement_by_category_label(
-                    ticker=data.ticker, category_label=data.category, period=data.period
-                )
+            financial_statement = await self.db.get_first_financial_statement_by_category_label(
+                ticker=data.ticker, category_label=data.category, period=data.period
             )
 
             if financial_statement is not None:
@@ -107,14 +105,10 @@ class FinancialStatementService:
         formula_namespace = dict.fromkeys([data.category], None)
         return await self.calculate_financial_statement(data, formula_namespace)
 
-    async def task_collect_financial_statement_value(
-        self, data: FinancialStatementRequest
-    ) -> None:
+    async def task_collect_financial_statement_value(self, data: FinancialStatementRequest) -> None:
         formula_namespace = dict.fromkeys([data.category], None)
 
-        if await self.calculate_financial_statement(
-            data=data, formula_namespace=formula_namespace, only_formulas=True
-        ):
+        if await self.calculate_financial_statement(data=data, formula_namespace=formula_namespace, only_formulas=True):
             return None
 
         logger.info(f"Scraping data for {data.ticker} {data.category} {data.period}")
@@ -139,10 +133,7 @@ class FinancialStatementService:
         formula_namespace: dict[str, float | None],
     ) -> FinancialStatementSchema | None:
         # if it is a simple tag, we can get the value from the db
-        if (
-            category_record.type == CategoryDefinitionType.api_tag
-            and category_record.value_definition
-        ):
+        if category_record.type == CategoryDefinitionType.api_tag and category_record.value_definition:
             # 1. what if there is not value by this tag ? -> returns None -> scrape data from the API
             return await self.db.get_financial_statement_by_category_tag(
                 ticker=data.ticker,
@@ -152,10 +143,7 @@ class FinancialStatementService:
 
         # if it is a formula, we need to calculate the value of it by parsing the formula
         # and getting the values of each the operands separately
-        elif (
-            category_record.type == CategoryDefinitionType.custom_formula
-            and category_record.value_definition
-        ):
+        elif category_record.type == CategoryDefinitionType.custom_formula and category_record.value_definition:
             # parse the formula string, extract operands and operators from the formula string
             formula_operands = re.findall(
                 settings.CUSTOM_FORMULA_OPERAND_PATTERN, category_record.value_definition, re.IGNORECASE
@@ -174,15 +162,13 @@ class FinancialStatementService:
                 # add the category to the namespace to prevent circular dependencies in formulas
                 formula_namespace[formula_operand] = None
 
-                formula_operand_financial_statement = (
-                    await self.calculate_financial_statement(
-                        data=FinancialStatementRequest(
-                            ticker=data.ticker,
-                            period=data.period,
-                            category=formula_operand,
-                        ),
-                        formula_namespace=formula_namespace,
-                    )
+                formula_operand_financial_statement = await self.calculate_financial_statement(
+                    data=FinancialStatementRequest(
+                        ticker=data.ticker,
+                        period=data.period,
+                        category=formula_operand,
+                    ),
+                    formula_namespace=formula_namespace,
                 )
 
                 financial_statements.append(formula_operand_financial_statement)
@@ -213,10 +199,7 @@ class FinancialStatementService:
             return financial_statement
 
         # if it is an exact value, we can just return it
-        elif (
-            category_record.type == CategoryDefinitionType.exact_value
-            and category_record.value_definition
-        ):
+        elif category_record.type == CategoryDefinitionType.exact_value and category_record.value_definition:
             raise NotImplementedError("Exact value type is not implemented yet")
 
         else:
@@ -232,13 +215,9 @@ class FinancialStatementService:
         # 1. get category metadata from the db
 
         categories: list[CategorySchema]
-        categories = await self.db.get_categories_for_label(
-            category_label=data.category, only_formulas=only_formulas
-        )
+        categories = await self.db.get_categories_for_label(category_label=data.category, only_formulas=only_formulas)
 
-        logger.debug(
-            f"Found {len(categories)} categories for tag '{data.category}' ({only_formulas=})"
-        )
+        logger.debug(f"Found {len(categories)} categories for tag '{data.category}' ({only_formulas=})")
 
         if not categories:
             logger.error(f"Category not found for tag {data.category}")
@@ -248,12 +227,10 @@ class FinancialStatementService:
         # 2. iterate over definitions
 
         for category_record in categories:
-            financial_statement: FinancialStatementSchema | None = (
-                await self.get_category_record_value(
-                    data=data,  # maybe change data.category to category_record.label
-                    category_record=category_record,
-                    formula_namespace=formula_namespace,
-                )
+            financial_statement: FinancialStatementSchema | None = await self.get_category_record_value(
+                data=data,  # maybe change data.category to category_record.label
+                category_record=category_record,
+                formula_namespace=formula_namespace,
             )
 
             if financial_statement is None:
@@ -294,9 +271,7 @@ class FinancialStatementService:
     async def get_company_submissions(self, cik: str) -> dict | None:
         async with self.semaphore:
             try:
-                response = await asyncio.to_thread(
-                    self.edgar_client.get_submissions, cik=cik
-                )
+                response = await asyncio.to_thread(self.edgar_client.get_submissions, cik=cik)
                 return response
             except Exception as e:
                 logger.error(f"Error fetching company submissions for CIK {cik}: {e}")
@@ -304,9 +279,7 @@ class FinancialStatementService:
     async def get_company_facts(self, cik: str) -> dict | None:
         async with self.semaphore:
             try:
-                response = await asyncio.to_thread(
-                    self.edgar_client.get_company_facts, cik=cik
-                )
+                response = await asyncio.to_thread(self.edgar_client.get_company_facts, cik=cik)
                 return response.get("facts", {})
             except Exception as e:
                 logger.error(f"Error fetching company submissions for CIK {cik}: {e}")
@@ -409,9 +382,7 @@ class FinancialStatementService:
             return []
 
     @staticmethod
-    def choose_calculation_category(
-        tag: str, category: str | None = None
-    ) -> str | None:
+    def choose_calculation_category(tag: str, category: str | None = None) -> str | None:
         for key, values in calculation_map.items():
             if category.lower() == category_map.get(key, "").lower():
                 conditions = values
@@ -439,10 +410,7 @@ class FinancialStatementService:
             save_task = None
             for i in range(0, len(new_ciks), settings.COUNTER):
                 fetch_start_time = time.time()
-                tasks = [
-                    self.get_company_submissions(cik=cik)
-                    for cik in new_ciks[i : settings.COUNTER + i]
-                ]
+                tasks = [self.get_company_submissions(cik=cik) for cik in new_ciks[i : settings.COUNTER + i]]
 
                 logger.info(f"Fetching data for {len(new_ciks[i:settings.COUNTER + i])} companies")
 
@@ -450,10 +418,7 @@ class FinancialStatementService:
                 companies = list(
                     filter(
                         None,
-                        [
-                            self.extract_company_data(submissions)
-                            for submissions in submissions_list
-                        ],
+                        [self.extract_company_data(submissions) for submissions in submissions_list],
                     )
                 )
 
@@ -499,11 +464,7 @@ class FinancialStatementService:
                                 priority=1,
                             )
                         )
-                        tasks.append(
-                            self.get_company_concept(
-                                cik=cik, taxonomy=taxonomy, tag=tag
-                            )
-                        )
+                        tasks.append(self.get_company_concept(cik=cik, taxonomy=taxonomy, tag=tag))
                     logger.info(
                         f"Fetching financial statements for company with "
                         f"CIK {cik}, taxonomy {taxonomy} and {len(tasks)} tags"
@@ -516,10 +477,7 @@ class FinancialStatementService:
                     financial_statements = list(
                         filter(
                             None,
-                            [
-                                self.extract_financial_statements(concept, "")
-                                for concept in concepts
-                            ],
+                            [self.extract_financial_statements(concept, "") for concept in concepts],
                         )
                     )
         except Exception as e:
@@ -541,7 +499,7 @@ class FinancialStatementService:
                     formula_operands = re.findall(
                         pattern=settings.CUSTOM_FORMULA_OPERAND_PATTERN,
                         string=category.value_definition,
-                        flags=re.IGNORECASE
+                        flags=re.IGNORECASE,
                     )
                     custom_formula_operands.extend(formula_operands)
                     continue
@@ -550,7 +508,6 @@ class FinancialStatementService:
                 fetch_start_time = time.time()
 
                 for category in categories:
-
                     if not taxonomy_data.get(category.value_definition):
                         continue
 
@@ -584,15 +541,10 @@ class FinancialStatementService:
             and not FinancialStatementService.companies_update_task.done()
         ):
             return "Companies data is being updated"
-        elif (
-            FinancialStatementService.companies_update_task
-            and FinancialStatementService.companies_update_task.done()
-        ):
+        elif FinancialStatementService.companies_update_task and FinancialStatementService.companies_update_task.done():
             await FinancialStatementService.companies_update_task
 
-        FinancialStatementService.companies_update_task = asyncio.create_task(
-            self.update_companies(ticker)
-        )
+        FinancialStatementService.companies_update_task = asyncio.create_task(self.update_companies(ticker))
         return "Company data has started to be updated"
 
     async def start_financial_statements_update(self) -> str:
@@ -607,7 +559,7 @@ class FinancialStatementService:
         ):
             await FinancialStatementService.financial_statements_update_task
 
-        FinancialStatementService.financial_statements_update_task = (
-            asyncio.create_task(self.fill_financial_statements())
+        FinancialStatementService.financial_statements_update_task = asyncio.create_task(
+            self.fill_financial_statements()
         )
         return "Financial statements data has started to be updated"

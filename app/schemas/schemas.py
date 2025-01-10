@@ -1,8 +1,8 @@
+from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
 from pydantic import BaseModel, field_validator
-
 
 category_map = {
     "AccruedIncomeTaxesCurrent": "Interest Expense",
@@ -118,10 +118,20 @@ class SubscriptionType(StrEnum):
     AnnualPremium = "Premium Subscription"
 
 
+class Subscription(BaseModel):
+    id: str
+    user_id: str
+    transaction_id: str
+    type: SubscriptionType
+    status: FulfillmentStatus
+    created_at: datetime
+    expired_at: datetime
+
+
 class User(BaseModel):
     id: str
     email: str
-    subscription: dict | None = None
+    subscription: Subscription | None = None
     superuser: bool = False
     password_hash: str | None = None
 
@@ -155,7 +165,7 @@ class FinancialStatementSchema(BaseModel):
 
     @field_validator("value", mode="before")
     @classmethod
-    def convert_value(cls, value):
+    def convert_value(cls, value) -> float | None:
         if value is None:
             return None
 
