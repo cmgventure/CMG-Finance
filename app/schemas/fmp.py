@@ -16,11 +16,11 @@ class FMPSchema(BaseModel):
 
     @field_validator("value", mode="before")
     @classmethod
-    def convert_value(cls, value):
+    def convert_value(cls, value) -> float | None:
         if value is None:
             return None
 
-        if isinstance(value, str) and value.startswith("$"):
+        if isinstance(value, str):
             # Remove '$' and ',' then convert to float
             return float(value.replace("$", "").replace(",", ""))
 
