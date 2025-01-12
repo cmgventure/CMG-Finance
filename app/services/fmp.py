@@ -55,7 +55,7 @@ class FMPService(FinancialStatementService):
                 if k in not_value_keys:
                     continue
 
-                data: dict[str, Any] = {"value": str(v)} | base
+                data: dict[str, Any] = {"value": str(round(v, 2))} | base
                 if category_id := categories.get(k.lower()):
                     data["category_id"] = category_id
                 else:

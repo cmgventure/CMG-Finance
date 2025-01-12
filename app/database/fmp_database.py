@@ -121,15 +121,12 @@ class FMPDatabase(Database):
         try:
             if update_categories:
                 await self.add_categories(financial_statements)
-            for i, financial_statement in enumerate(financial_statements):
-                stmt = (
-                    insert(FMPStatement)
-                    .values(financial_statement)
-                    .on_conflict_do_update(
-                        constraint="fmp_statements_pkey", set_={"value": financial_statement["value"]}
-                    )
-                )
-                await self.session.execute(stmt)
+
+            stmt = insert(FMPStatement).values(financial_statements)
+            stmt = stmt.on_conflict_do_update(
+                constraint="fmp_statements_pkey", set_={"value": stmt.excluded.value}
+            )
+            await self.session.execute(stmt)
             await self.session.commit()
         except Exception as e:
             logger.error(f"Error adding financial statements: {e}")
