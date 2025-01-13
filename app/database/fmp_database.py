@@ -28,7 +28,7 @@ class FMPDatabase(Database):
 
         return [CategorySchema.model_validate(obj.__dict__) for obj in objects]
 
-    async def get_category_ids(self) -> dict[str, UUID]:
+    async def get_category_ids(self) -> dict[str, list[UUID]]:
         stmt = select(FMPCategory)
 
         result = await self.session.execute(stmt)
@@ -41,7 +41,7 @@ class FMPDatabase(Database):
         categories = {}
         for obj in objects:
             category = CategorySchema.model_validate(obj.__dict__)
-            categories[category.value_definition.lower()] = category.id
+            categories.setdefault(category.value_definition.lower(), []).append(category.id)
 
         return categories
 

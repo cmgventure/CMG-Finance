@@ -26,7 +26,7 @@ class FMPService(FinancialStatementService):
         self.api_url = "https://financialmodelingprep.com/api/v3"
 
     @staticmethod
-    def extract_statements(statements: list[dict], categories: dict[str, UUID]) -> tuple[list[dict], bool]:
+    def extract_statements(statements: list[dict], categories: dict[str, list[UUID]]) -> tuple[list[dict], bool]:
         not_value_keys = [
             "date",
             "symbol",
@@ -55,19 +55,16 @@ class FMPService(FinancialStatementService):
                 if k in not_value_keys:
                     continue
 
-                data: dict[str, Any] = {"value": str(round(v, 2))} | base
-                if category_id := categories.get(k.lower()):
-                    data["category_id"] = category_id
-                else:
-                    data["category"] = k
+                for category_id in categories.get(k.lower(), []):
+                    results.append({"value": str(round(v, 2)), "category_id": category_id} | base)
+                if not categories.get(k.lower()):
+                    results.append({"value": str(round(v, 2)), "category": k} | base)
                     update_categories = True
 
                 # key = (*base.values(), data.get("category_id") or data.get("category"))
                 # if temp_data := results.get(key) and not float(data["value"]):
                 #     data["value"] = temp_data["value"]
                 # results[key] = data
-
-                results.append(data)
 
         return results, update_categories
 
