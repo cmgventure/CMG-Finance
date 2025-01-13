@@ -62,6 +62,11 @@ class FMPService(FinancialStatementService):
                     data["category"] = k
                     update_categories = True
 
+                # key = (*base.values(), data.get("category_id") or data.get("category"))
+                # if temp_data := results.get(key) and not float(data["value"]):
+                #     data["value"] = temp_data["value"]
+                # results[key] = data
+
                 results.append(data)
 
         return results, update_categories
@@ -132,7 +137,7 @@ class FMPService(FinancialStatementService):
                 detail=f"Company not found for stock ticker {data.ticker}",
             )
 
-        await self.get_statement(cik=cik, period=data.period)
+        await self.get_statement(ticker=data.ticker, period=data.period)
 
         logger.info(f"Data scraped for {data.ticker} {data.category} {data.period}")
 
@@ -175,7 +180,7 @@ class FMPService(FinancialStatementService):
             response = await session.request(method=method, url=f"{self.api_url}/{uri}", **kwargs)
             return await response.json()
 
-    async def get_statements(self, cik: str, period: FiscalPeriod, year: int | None = None) -> list[dict]:
+    async def get_statements(self, ticker: str, period: FiscalPeriod, year: int | None = None) -> list[dict]:
         # limit = datetime.now(UTC).year - year + 1 if year else 100
         # if period.type == FiscalPeriodType.QUARTER:
         #     limit *= 4
@@ -183,7 +188,7 @@ class FMPService(FinancialStatementService):
         params = {"period": period.type}
 
         tasks = [
-            self.request(f"{statement}/{cik}", params=params)
+            self.request(f"{statement}/{ticker}", params=params)
             for statement in ["income-statement", "balance-sheet-statement", "cash-flow-statement"]
         ]
 
@@ -191,16 +196,17 @@ class FMPService(FinancialStatementService):
 
         return [{k: v for statement in statements for k, v in statement.items()} for statements in zip(*results)]
 
-    async def get_statement(self, cik: str, period: str) -> None:
+    async def get_statement(self, ticker: str, period: str) -> None:
         categories = await self.db.get_category_ids()
 
         period = apply_fiscal_period_patterns(period)
         fiscal_period, year = period.split()
 
-        raw_statements = await self.get_statements(cik, FiscalPeriod(fiscal_period), int(year))
+        raw_statements = await self.get_statements(ticker, FiscalPeriod(fiscal_period), int(year))
         statements, update_categories = self.extract_statements(raw_statements, categories)
 
         logger.info(
-            f"Saving financial statements for company with CIK {cik} " f"and {len(statements)} financial statements"
+            f"Saving financial statements for company with ticker {ticker} " 
+            f"and {len(statements)} financial statements"
         )
         await self.db.add_financial_statements(statements, update_categories)
