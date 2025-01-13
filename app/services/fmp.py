@@ -14,9 +14,9 @@ from app.enums.base import RequestMethod
 from app.enums.fmp import FiscalPeriod
 from app.schemas.fmp import FMPSchema
 from app.schemas.schemas import FinancialStatementRequest, User
-from app.services.financial_statement_service import FinancialStatementService, synchronized_request
+from app.services.financial_statement_service import FinancialStatementService
 from app.services.scheduler import scheduler_service
-from app.utils.utils import apply_fiscal_period_patterns, parse_financial_statement_key
+from app.utils.utils import apply_fiscal_period_patterns, parse_financial_statement_key, synchronized_request
 
 
 class FMPService(FinancialStatementService):
@@ -144,7 +144,7 @@ class FMPService(FinancialStatementService):
     async def get_financial_statement_by_key(self, key: str, force_update: bool) -> dict:
         parsed_request = parse_financial_statement_key(key)
 
-        financial_statement = await self.get_financial_statement(parsed_request, force_update)
+        financial_statement = await self.get_financial_statement(parsed_request, force_update=force_update)
         value = financial_statement.value if financial_statement else 0
 
         return {key: value}
@@ -162,11 +162,14 @@ class FMPService(FinancialStatementService):
         # at this point, we didn't get any values for all the specified tags of the category (sorted by priority)
         # we need to check if there are any formula type categories and calculate the value
         # if there are no formula type categories, we need to scrape the data
+        period = apply_fiscal_period_patterns(data.period)
+        fiscal_period, year = period.split()
+        period_type = FiscalPeriod(fiscal_period).type
 
         # run bg task to calculate value
         scheduler_service.add_job(
             self.task_collect_financial_statement_value,
-            id=f"{data.ticker}|{data.category}",
+            id=f"{data.ticker}|{period_type}",
             misfire_grace_time=None,
             trigger="date",
             args=[data],
@@ -206,7 +209,7 @@ class FMPService(FinancialStatementService):
         statements, update_categories = self.extract_statements(raw_statements, categories)
 
         logger.info(
-            f"Saving financial statements for company with ticker {ticker} " 
+            f"Saving financial statements for company with ticker {ticker} "
             f"and {len(statements)} financial statements"
         )
         await self.db.add_financial_statements(statements, update_categories)

@@ -1,9 +1,38 @@
+import asyncio
 import re
+from functools import wraps
 
 from fastapi import HTTPException, status
 from loguru import logger
 
 from app.schemas.schemas import FinancialStatementRequest
+
+
+def synchronized_request(key_func):
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(self, *args, **kwargs):
+            key = key_func(*args)
+            requests = self.requests
+
+            if key in requests:
+                logger.info(f"Waiting for {key}")
+                await requests[key].wait()
+            else:
+                requests[key] = asyncio.Event()
+
+            try:
+                result = await func(self, *args, **kwargs)
+            finally:
+                if key in requests:
+                    event = requests.pop(key)
+                    event.set()
+
+            return result
+
+        return wrapper
+
+    return decorator
 
 
 def parse_financial_statement_key(key: str) -> FinancialStatementRequest:

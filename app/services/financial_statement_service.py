@@ -96,7 +96,7 @@ class FinancialStatementService:
     async def get_financial_statement_by_key(self, key: str, force_update: bool) -> dict:
         parsed_request = parse_financial_statement_key(key)
 
-        financial_statement = await self.get_financial_statement(parsed_request, force_update)
+        financial_statement = await self.get_financial_statement(parsed_request, force_update=force_update)
         value = financial_statement.value if financial_statement else 0
 
         return {key: value}
