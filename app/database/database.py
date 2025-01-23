@@ -73,8 +73,9 @@ class Database:
 
     async def add_companies(self, companies: list[dict]) -> None:
         try:
-            for company in companies:
-                stmt = insert(Company).values(company).on_conflict_do_update(index_elements=["cik"], set_=company)
+            for i in range(0, len(companies), 5000):
+                values = companies[i : i + 5000]
+                stmt = insert(Company).values(values).on_conflict_do_nothing()
                 await self.session.execute(stmt)
             await self.session.commit()
         except Exception as e:

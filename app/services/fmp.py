@@ -13,17 +13,26 @@ from app.database.fmp_database import FMPDatabase
 from app.enums.base import RequestMethod
 from app.enums.fmp import FiscalPeriod
 from app.schemas.fmp import FMPSchema
-from app.schemas.schemas import FinancialStatementRequest, User
-from app.services.financial_statement_service import FinancialStatementService
+from app.schemas.schemas import FinancialStatementRequest
 from app.services.scheduler import scheduler_service
 from app.utils.utils import apply_fiscal_period_patterns, parse_financial_statement_key, synchronized_request
 
 
-class FMPService(FinancialStatementService):
-    def __init__(self, db: FMPDatabase, user: User) -> None:
-        super().__init__(db, user)
+class FMPService:
+    def __init__(self, db: FMPDatabase) -> None:
         self.db = db
         self.api_url = "https://financialmodelingprep.com/api/v3"
+
+    @staticmethod
+    def extract_company_data(company: dict) -> dict | None:
+        return {
+            "cik": company["cik"],
+            "name": company["companyName"],
+            "ticker": company["symbol"],
+            "business_address": company["address"],
+            "mailing_address": company["address"],
+            "phone": company["phone"],
+        }
 
     @staticmethod
     def extract_statements(statements: list[dict], categories: dict[str, list[UUID]]) -> tuple[list[dict], bool]:
@@ -72,53 +81,33 @@ class FMPService(FinancialStatementService):
     async def update_company_if_not_exists(self, ticker: str) -> str | None:
         cik = await self.db.get_company_cik(ticker=ticker)
         if not cik:
-            await self.update_companies(ticker=ticker)
+            await self.update_company(ticker=ticker)
             cik = await self.db.get_company_cik(ticker=ticker)
 
         return cik
 
-    async def update_companies(self, ticker: str | None = None) -> None:
-        try:
-            ciks = await self.get_all_company_ciks(ticker)
+    async def update_companies(self):
+        companies = await self.request("stock/list")
+        if not companies:
+            return
 
-            if not ciks:
+        companies_data = [await self.update_company(company["symbol"], save=False) for company in companies]
+        await self.db.add_companies(companies_data)
+
+    async def update_company(self, ticker: str, save: bool = True) -> dict | None:
+        try:
+            companies = await self.request(f"profile/{ticker}")
+            if not companies:
                 return
 
-            logger.info(f"CIKs found for {len(ciks)} companies")
+            company = companies[0]
+            company_data = self.extract_company_data(company)
 
-            saved_ciks = await self.db.get_company_ciks()
-            new_ciks = list(set(ciks) - set(saved_ciks))
-
-            save_task = None
-            for i in range(0, len(new_ciks), settings.COUNTER):
-                fetch_start_time = time.time()
-                tasks = [self.get_company_submissions(cik=cik) for cik in new_ciks[i : settings.COUNTER + i]]
-
-                logger.info(f"Fetching data for {len(new_ciks[i:settings.COUNTER + i])} companies")
-
-                submissions_list = list(filter(None, await asyncio.gather(*tasks)))
-                companies = list(
-                    filter(
-                        None,
-                        [self.extract_company_data(submissions) for submissions in submissions_list],
-                    )
-                )
-
-                logger.info(f"Company data was fetched in {time.time() - fetch_start_time} seconds")
-
-                if save_task:
-                    await save_task
-
-                logger.info(f"Saving data for {len(new_ciks[i:settings.COUNTER + i])} companies")
-
-                save_task = asyncio.create_task(self.db.add_companies(companies))
-
-            if save_task:
-                await save_task
-
+            if save:
+                await self.db.add_company(company_data)
+            return company_data
         except Exception as e:
-            logger.error(f"Error updating companies: {e}")
-
+            logger.error(f"Error updating company: {e}")
         finally:
             logger.info("Finished updating companies")
 
@@ -189,7 +178,13 @@ class FMPService(FinancialStatementService):
 
         tasks = [
             self.request(f"{statement}/{ticker}", params=params)
-            for statement in ["income-statement", "balance-sheet-statement", "cash-flow-statement"]
+            for statement in [
+                "income-statement",
+                "balance-sheet-statement",
+                "cash-flow-statement",
+                "key-metrics",
+                "ratios",
+            ]
         ]
 
         results = await asyncio.gather(*tasks)
