@@ -17,7 +17,7 @@ async def get_financial_statement_task(user: User, key: str, force_update: bool)
     async with semaphore:
         async with get_db_context() as db:
             database = FMPDatabase(session=db)
-            service = FMPService(db=database, user=user)
+            service = FMPService(db=database)
             # if force_update is True -> run API scrapper else get financial statement from DB
             return await service.get_financial_statement_by_key(key, force_update)
 

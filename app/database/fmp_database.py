@@ -13,37 +13,45 @@ from app.utils.utils import apply_fiscal_period_patterns, transform_category
 
 class FMPDatabase(Database):
     async def get_categories_for_label(self, category_label: str, only_formulas: bool = False) -> list[CategorySchema]:
-        stmt = (
-            select(FMPCategory)
-            .where(func.lower(FMPCategory.label).ilike(f"%{category_label.lower()}%"))
-            .order_by(FMPCategory.priority)
-        )
+        try:
+            stmt = (
+                select(FMPCategory)
+                .where(func.lower(FMPCategory.label).ilike(f"%{category_label.lower()}%"))
+                .order_by(FMPCategory.priority)
+            )
 
-        result = await self.session.execute(stmt)
+            result = await self.session.execute(stmt)
 
-        objects = result.scalars().all()
+            objects = result.scalars().all()
 
-        if not objects:
-            return []
+            if not objects:
+                return []
 
-        return [CategorySchema.model_validate(obj.__dict__) for obj in objects]
+            return [CategorySchema.model_validate(obj.__dict__) for obj in objects]
+        except Exception as e:
+            logger.error(f"Error getting categories by label: {e}")
+            await self.session.rollback()
 
     async def get_category_ids(self) -> dict[str, list[UUID]]:
-        stmt = select(FMPCategory)
+        try:
+            stmt = select(FMPCategory)
 
-        result = await self.session.execute(stmt)
+            result = await self.session.execute(stmt)
 
-        objects = result.scalars().all()
+            objects = result.scalars().all()
 
-        if not objects:
-            return {}
+            if not objects:
+                return {}
 
-        categories = {}
-        for obj in objects:
-            category = CategorySchema.model_validate(obj.__dict__)
-            categories.setdefault(category.value_definition.lower(), []).append(category.id)
+            categories = {}
+            for obj in objects:
+                category = CategorySchema.model_validate(obj.__dict__)
+                categories.setdefault(category.value_definition.lower(), []).append(category.id)
 
-        return categories
+            return categories
+        except Exception as e:
+            logger.error(f"Error getting category ids: {e}")
+            await self.session.rollback()
 
     async def _get_financial_statement_by_category_tag(
         self,

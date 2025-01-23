@@ -23,14 +23,7 @@ if config.config_file_name is not None:
 # target_metadata = mymodel.Base.metadata
 
 from app.database.base_class import Base
-from app.database.models import (
-    Category,
-    CategoryDefinitionType,
-    Company,
-    FinancialStatement,
-    Subscription,
-    User,
-)
+from app.database.models import Category, CategoryDefinitionType, Company, FinancialStatement, Subscription, User
 
 target_metadata = Base.metadata
 

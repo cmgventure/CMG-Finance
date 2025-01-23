@@ -98,6 +98,14 @@ class Database:
         except Exception as e:
             logger.error(f"Error getting companies: {e}")
 
+    async def get_company_tickers(self) -> Sequence | None:
+        try:
+            stmt = select(Company.ticker)
+            result = await self.session.execute(stmt)
+            return result.scalars().all()
+        except Exception as e:
+            logger.error(f"Error getting companies: {e}")
+
     async def add_categories(self, categories: list[CategoryBaseSchema]):
         try:
             for category in categories:
