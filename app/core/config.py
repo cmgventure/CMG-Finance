@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     CUSTOM_FORMULA_OPERATOR_PATTERN: str = r"\(\+\)|\(\-\)"
 
     @property
-    def postgres_url(self):
+    def postgres_url(self) -> str:
         return (
             f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"

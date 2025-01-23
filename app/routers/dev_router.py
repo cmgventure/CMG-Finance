@@ -5,17 +5,16 @@ from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.connection import get_db
-from app.database.database import Database
-from app.schemas.schemas import CompaniesUpdateRequest, User
+from app.database.fmp_database import FMPDatabase
+from app.schemas.schemas import User
 from app.services.auth_service import get_current_user
-from app.services.financial_statement_service import FinancialStatementService
+from app.services.fmp import FMPService
 
 router = APIRouter(prefix="/dev", tags=["Dev"])
 
 
 @router.post("/update/companies")
 async def start_companies_update(
-    data: CompaniesUpdateRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -23,9 +22,24 @@ async def start_companies_update(
         logger.error("Access Denied, user is not a superuser")
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied")
 
-    database = Database(session=db)
-    parser = FinancialStatementService(db=database, user=current_user)
-    return await parser.start_companies_update(data.ticker)
+    database = FMPDatabase(session=db)
+    parser = FMPService(db=database)
+    return await parser.start_companies_update()
+
+
+@router.post("/update/financial_statements")
+async def start_financial_statements_update(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if not current_user.superuser:
+        logger.error("Access Denied, user is not a superuser")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied")
+
+    database = FMPDatabase(session=db)
+    parser = FMPService(db=database)
+
+    return await parser.start_financial_statements_update()
 
 
 @router.get("/stop/companies")
@@ -34,13 +48,13 @@ async def stop_companies_update(current_user: User = Depends(get_current_user)):
         logger.error("Access Denied, user is not a superuser")
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied")
 
-    if not FinancialStatementService.companies_update_task:
+    if not FMPService.companies_update_task:
         return "Companies are not updated."
-    elif FinancialStatementService.companies_update_task.done():
-        await FinancialStatementService.companies_update_task
+    elif FMPService.companies_update_task.done():
+        await FMPService.companies_update_task
         return "Update of companies is complete."
     else:
-        FinancialStatementService.companies_update_task.cancel()
+        FMPService.companies_update_task.cancel()
         return "Update of companies has stopped."
 
 
@@ -52,13 +66,13 @@ async def stop_financial_statements_update(
         logger.error("Access Denied, user is not a superuser")
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied")
 
-    if not FinancialStatementService.financial_statements_update_task:
+    if not FMPService.financial_statements_update_task:
         return "Financial statements are not updated."
-    elif FinancialStatementService.financial_statements_update_task.done():
-        await FinancialStatementService.financial_statements_update_task
+    elif FMPService.financial_statements_update_task.done():
+        await FMPService.financial_statements_update_task
         return "Update of financial statements is complete."
     else:
-        FinancialStatementService.financial_statements_update_task.cancel()
+        FMPService.financial_statements_update_task.cancel()
         return "Update of financial statements has stopped."
 
 
@@ -79,6 +93,6 @@ async def check_update_tasks(current_user: User = Depends(get_current_user)):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied")
 
     return {
-        "companies_update": get_status(FinancialStatementService.companies_update_task),
-        "financial_statements_update": get_status(FinancialStatementService.financial_statements_update_task),
+        "companies_update": get_status(FMPService.companies_update_task),
+        "financial_statements_update": get_status(FMPService.financial_statements_update_task),
     }

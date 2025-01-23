@@ -73,8 +73,9 @@ class Database:
 
     async def add_companies(self, companies: list[dict]) -> None:
         try:
-            for company in companies:
-                stmt = insert(Company).values(company).on_conflict_do_update(index_elements=["cik"], set_=company)
+            for i in range(0, len(companies), 5000):
+                values = companies[i : i + 5000]
+                stmt = insert(Company).values(values).on_conflict_do_nothing()
                 await self.session.execute(stmt)
             await self.session.commit()
         except Exception as e:
@@ -92,6 +93,14 @@ class Database:
     async def get_company_ciks(self) -> Sequence | None:
         try:
             stmt = select(Company.cik)
+            result = await self.session.execute(stmt)
+            return result.scalars().all()
+        except Exception as e:
+            logger.error(f"Error getting companies: {e}")
+
+    async def get_company_tickers(self) -> Sequence | None:
+        try:
+            stmt = select(Company.ticker)
             result = await self.session.execute(stmt)
             return result.scalars().all()
         except Exception as e:
