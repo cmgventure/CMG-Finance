@@ -68,7 +68,7 @@ class FMPDatabase(Database):
             .join(FMPCategory)
             .where(
                 Company.ticker == ticker,
-                FMPStatement.period == period,
+                func.lower(FMPStatement.period) == period.lower(),
                 # FMPStatement.report_date >= report_date,
                 func.lower(FMPCategory.label).ilike(f"%{category_label.lower()}%"),
                 FMPStatement.value.isnot(None),
