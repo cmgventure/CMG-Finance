@@ -208,7 +208,7 @@ class Database:
         period: str,
     ) -> Result:
         period = self.apply_fiscal_period_patterns(period)
-        report_date = f"{period.split()[1]}-01-01"
+        # report_date = f"{period.split()[1]}-01-01"
 
         stmt = (
             select(FinancialStatement)
@@ -217,7 +217,7 @@ class Database:
             .where(
                 Company.ticker == ticker,
                 FinancialStatement.period == period,
-                FinancialStatement.report_date >= report_date,
+                # FinancialStatement.report_date >= report_date,
                 func.lower(Category.label).ilike(f"%{category_label.lower()}%"),
                 FinancialStatement.value.isnot(None),
             )
@@ -246,7 +246,7 @@ class Database:
         self, ticker: str, value_definition_tag: str, period: str
     ) -> FinancialStatementSchema | None:
         period = self.apply_fiscal_period_patterns(period)
-        report_date = f"{period.split()[1]}-01-01"
+        # report_date = f"{period.split()[1]}-01-01"
 
         stmt = (
             select(FinancialStatement)
@@ -255,7 +255,7 @@ class Database:
             .where(
                 Company.ticker == ticker,
                 FinancialStatement.period == period,
-                FinancialStatement.report_date >= report_date,
+                # FinancialStatement.report_date >= report_date,
                 Category.value_definition == value_definition_tag,
                 FinancialStatement.value.isnot(None),
             )
