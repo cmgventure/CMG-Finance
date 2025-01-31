@@ -80,6 +80,30 @@ class FMPService:
 
         return results, update_categories
 
+    @staticmethod
+    def extract_ttm_statements(
+        statements: list[dict], categories: dict[str, list[UUID]], cik: str
+    ) -> tuple[list[dict], bool]:
+        update_categories = False
+
+        results = []
+        for statement in statements:
+            base = {
+                "cik": cik,
+                "period": "ttm",
+                "report_date": "ttm",
+                "filing_date": "ttm",
+            }
+
+            for k, v in statement.items():
+                for category_id in categories.get(k.lower(), []):
+                    results.append({"value": str(round(v, 2)), "category_id": category_id} | base)
+                if not categories.get(k.lower()):
+                    results.append({"value": str(round(v, 2)), "category": k} | base)
+                    update_categories = True
+
+        return results, update_categories
+
     @synchronized_request(lambda ticker: ticker)
     async def update_company_if_not_exists(self, ticker: str) -> str | None:
         cik = await self.db.get_company_cik(ticker=ticker)
@@ -139,7 +163,7 @@ class FMPService:
                 detail=f"Company not found for stock ticker {data.ticker}",
             )
 
-        await self.get_statement(ticker=data.ticker, period=data.period)
+        await self.get_statement(ticker=data.ticker, cik=cik, period=data.period)
 
         logger.info(f"Data scraped for {data.ticker} {data.category} {data.period}")
 
@@ -165,7 +189,7 @@ class FMPService:
         # we need to check if there are any formula type categories and calculate the value
         # if there are no formula type categories, we need to scrape the data
         period = apply_fiscal_period_patterns(data.period)
-        fiscal_period, year = period.split()
+        fiscal_period = period.split()[0]
         period_type = FiscalPeriod(fiscal_period).type
 
         # run bg task to calculate value
@@ -191,31 +215,39 @@ class FMPService:
         # if period.type == FiscalPeriodType.QUARTER:
         #     limit *= 4
 
-        params = {"period": period_type}
+        if period_type == FiscalPeriodType.TTM:
+            tasks = [self.request(f"{statement}/{ticker}") for statement in ["key-metrics-ttm", "ratios-ttm"]]
+        else:
+            params = {"period": period_type}
 
-        tasks = [
-            self.request(f"{statement}/{ticker}", params=params)
-            for statement in [
-                "income-statement",
-                "balance-sheet-statement",
-                "cash-flow-statement",
-                "key-metrics",
-                "ratios",
+            tasks = [
+                self.request(f"{statement}/{ticker}", params=params)
+                for statement in [
+                    "income-statement",
+                    "balance-sheet-statement",
+                    "cash-flow-statement",
+                    "key-metrics",
+                    "ratios",
+                ]
             ]
-        ]
 
         results = await asyncio.gather(*tasks)
 
         return [{k: v for statement in statements for k, v in statement.items()} for statements in zip(*results)]
 
-    async def get_statement(self, ticker: str, period: str) -> None:
+    async def get_statement(self, ticker: str, cik: str, period: str) -> None:
         categories = await self.db.get_category_ids()
 
         period = apply_fiscal_period_patterns(period)
-        fiscal_period, year = period.split()
+        fiscal_period = period.split()[0]
+        period_type = FiscalPeriod(fiscal_period).type
 
-        raw_statements = await self.fetch_statements(ticker, FiscalPeriod(fiscal_period).type)
-        statements, update_categories = self.extract_statements(raw_statements, categories)
+        raw_statements = await self.fetch_statements(ticker, period_type)
+
+        if period_type == FiscalPeriodType.TTM:
+            statements, update_categories = self.extract_ttm_statements(raw_statements, categories, cik)
+        else:
+            statements, update_categories = self.extract_statements(raw_statements, categories)
 
         logger.info(
             f"Saving financial statements for company with ticker {ticker} "

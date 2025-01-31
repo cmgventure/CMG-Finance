@@ -60,7 +60,7 @@ class FMPDatabase(Database):
         period: str,
     ) -> Result:
         period = apply_fiscal_period_patterns(period)
-        report_date = f"{period.split()[1]}-01-01"
+        # report_date = f"{period.split()[1]}-01-01"
 
         stmt = (
             select(FMPStatement)
@@ -69,7 +69,7 @@ class FMPDatabase(Database):
             .where(
                 Company.ticker == ticker,
                 FMPStatement.period == period,
-                FMPStatement.report_date >= report_date,
+                # FMPStatement.report_date >= report_date,
                 func.lower(FMPCategory.label).ilike(f"%{category_label.lower()}%"),
                 FMPStatement.value.isnot(None),
             )

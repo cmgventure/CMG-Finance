@@ -43,7 +43,7 @@ def parse_financial_statement_key(key: str) -> FinancialStatementRequest:
             raise ValueError(f"Invalid key format: {key}")
 
         ticker, category, period = parts
-        return FinancialStatementRequest(ticker=ticker.upper(), category=category, period=period)
+        return FinancialStatementRequest(ticker=ticker.upper(), category=category, period=period.upper())
     except Exception as e:
         logger.error(f"Failed to parse key: {key}. Error: {e}")
         raise HTTPException(
@@ -70,6 +70,6 @@ def apply_fiscal_period_patterns(period: str) -> str:
 
 
 def transform_category(category: str) -> str:
-    words = re.sub(r"([A-Z])", r" \1", category).split()
+    words = re.sub(r"([a-z])([A-Z])", r"\1 \2", category).split()
     words[0] = words[0].capitalize()
     return " ".join(words)
