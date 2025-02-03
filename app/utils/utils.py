@@ -39,11 +39,15 @@ def parse_financial_statement_key(key: str) -> FinancialStatementRequest:
     try:
         # Split the key by '|'
         parts = key.split("|")
-        if len(parts) != 3:
+        if len(parts) < 2:
             raise ValueError(f"Invalid key format: {key}")
+        elif len(parts) == 2:
+            ticker, category = parts
+            period = None
+        else:
+            ticker, category, period = parts
 
-        ticker, category, period = parts
-        return FinancialStatementRequest(ticker=ticker.upper(), category=category, period=period.upper())
+        return FinancialStatementRequest(ticker=ticker, category=category, period=period)
     except Exception as e:
         logger.error(f"Failed to parse key: {key}. Error: {e}")
         raise HTTPException(

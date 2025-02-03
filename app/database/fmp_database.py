@@ -6,9 +6,10 @@ from sqlalchemy.dialects.postgresql import insert
 
 from app.database import Database
 from app.database.models import Company, FMPCategory, FMPStatement
+from app.enums.fmp import FiscalPeriod, FiscalPeriodType
 from app.schemas.fmp import FMPSchema
 from app.schemas.schemas import CategoryDefinitionType, CategorySchema
-from app.utils.utils import apply_fiscal_period_patterns, transform_category
+from app.utils.utils import transform_category
 
 
 class FMPDatabase(Database):
@@ -57,9 +58,17 @@ class FMPDatabase(Database):
         self,
         ticker: str,
         category_label: str,
-        period: str,
+        period: str | None = None,
     ) -> Result:
-        period = apply_fiscal_period_patterns(period)
+        if period:
+            fiscal_period = period.split()[0]
+            period_type = FiscalPeriod(fiscal_period).type
+        else:
+            period_type = FiscalPeriodType.LATEST
+
+        if period_type == FiscalPeriodType.TTM and not category_label.endswith("ttm"):
+            category_label = f"{category_label} ttm"
+
         # report_date = f"{period.split()[1]}-01-01"
 
         stmt = (
@@ -70,7 +79,7 @@ class FMPDatabase(Database):
                 Company.ticker == ticker,
                 func.lower(FMPStatement.period) == period.lower(),
                 # FMPStatement.report_date >= report_date,
-                func.lower(FMPCategory.label).ilike(f"%{category_label.lower()}%"),
+                func.lower(FMPCategory.label).ilike(f"%{category_label}%"),
                 FMPStatement.value.isnot(None),
             )
             .order_by(
@@ -86,7 +95,7 @@ class FMPDatabase(Database):
         self,
         ticker: str,
         category_label: str,
-        period: str,
+        period: str | None = None,
     ) -> FMPSchema | None:
         result = await self._get_financial_statement_by_category_tag(ticker, category_label, period)
         obj = result.scalars().first()

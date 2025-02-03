@@ -14,7 +14,7 @@ from app.enums.fmp import FiscalPeriod, FiscalPeriodType
 from app.schemas.fmp import FMPSchema
 from app.schemas.schemas import FinancialStatementRequest
 from app.services.scheduler import scheduler_service
-from app.utils.utils import apply_fiscal_period_patterns, parse_financial_statement_key, synchronized_request
+from app.utils.utils import parse_financial_statement_key, synchronized_request
 
 
 class FMPService:
@@ -26,7 +26,7 @@ class FMPService:
 
     def __init__(self, db: FMPDatabase) -> None:
         self.db = db
-        self.api_url = "https://financialmodelingprep.com/api/v3"
+        self.api_url = "https://financialmodelingprep.com/api"
 
     @staticmethod
     def extract_company_data(company: dict) -> dict | None:
@@ -43,7 +43,9 @@ class FMPService:
         }
 
     @staticmethod
-    def extract_statements(statements: list[dict], categories: dict[str, list[UUID]]) -> tuple[list[dict], bool]:
+    def extract_statements(
+        statements: list[dict], categories: dict[str, list[UUID]], period_type: FiscalPeriodType, cik: str | None = None
+    ) -> tuple[list[dict], bool]:
         not_value_keys = [
             "date",
             "symbol",
@@ -61,41 +63,25 @@ class FMPService:
 
         results = []
         for statement in statements:
-            base = {
-                "cik": statement["cik"],
-                "period": f"{statement['period']} {statement['calendarYear']}",
-                "report_date": statement["acceptedDate"],
-                "filing_date": statement["fillingDate"],
-            }
+            if period_type in (FiscalPeriodType.LATEST, FiscalPeriod.TTM):
+                base = {
+                    "cik": statement["cik"] if not cik else cik,
+                    "period": period_type,
+                    "report_date": period_type,
+                    "filing_date": period_type,
+                }
+            else:
+                base = {
+                    "cik": statement["cik"] if not cik else cik,
+                    "period": f"{statement['period']} {statement['calendarYear']}",
+                    "report_date": statement["acceptedDate"],
+                    "filing_date": statement["fillingDate"],
+                }
 
             for k, v in statement.items():
                 if v is None or k in not_value_keys:
                     continue
 
-                for category_id in categories.get(k.lower(), []):
-                    results.append({"value": str(round(v, 2)), "category_id": category_id} | base)
-                if not categories.get(k.lower()):
-                    results.append({"value": str(round(v, 2)), "category": k} | base)
-                    update_categories = True
-
-        return results, update_categories
-
-    @staticmethod
-    def extract_ttm_statements(
-        statements: list[dict], categories: dict[str, list[UUID]], cik: str
-    ) -> tuple[list[dict], bool]:
-        update_categories = False
-
-        results = []
-        for statement in statements:
-            base = {
-                "cik": cik,
-                "period": "ttm",
-                "report_date": "ttm",
-                "filing_date": "ttm",
-            }
-
-            for k, v in statement.items():
                 for category_id in categories.get(k.lower(), []):
                     results.append({"value": str(round(v, 2)), "category_id": category_id} | base)
                 if not categories.get(k.lower()):
@@ -114,13 +100,13 @@ class FMPService:
         return cik
 
     async def update_companies(self) -> None:
-        companies = await self.request("stock/list")
+        companies = await self.request("v3/stock/list")
         if not companies:
             return
 
         tickers = set(company["symbol"] for company in companies) - set(await self.db.get_company_tickers())
 
-        tasks = [self.request(f"profile/{ticker}") for ticker in tickers]
+        tasks = [self.request(f"v3/profile/{ticker}") for ticker in tickers]
         for i in range(0, len(tasks), 100):
             results = await asyncio.gather(*tasks[i : i + 100])
             companies_data = [
@@ -188,9 +174,11 @@ class FMPService:
         # at this point, we didn't get any values for all the specified tags of the category (sorted by priority)
         # we need to check if there are any formula type categories and calculate the value
         # if there are no formula type categories, we need to scrape the data
-        period = apply_fiscal_period_patterns(data.period)
-        fiscal_period = period.split()[0]
-        period_type = FiscalPeriod(fiscal_period).type
+        if data.period:
+            fiscal_period = data.period.split()[0]
+            period_type = FiscalPeriod(fiscal_period).type
+        else:
+            period_type = FiscalPeriodType.LATEST
 
         # run bg task to calculate value
         scheduler_service.add_job(
@@ -215,13 +203,18 @@ class FMPService:
         # if period.type == FiscalPeriodType.QUARTER:
         #     limit *= 4
 
-        if period_type == FiscalPeriodType.TTM:
-            tasks = [self.request(f"{statement}/{ticker}") for statement in ["key-metrics-ttm", "ratios-ttm"]]
+        if period_type == FiscalPeriodType.LATEST:
+            tasks = [
+                self.request(statement)
+                for statement in [f"v3/discounted-cash-flow/{ticker}", f"v4/price-target-consensus?symbol={ticker}"]
+            ]
+        elif period_type == FiscalPeriodType.TTM:
+            tasks = [self.request(f"v3/{statement}/{ticker}") for statement in ["key-metrics-ttm", "ratios-ttm"]]
         else:
             params = {"period": period_type}
 
             tasks = [
-                self.request(f"{statement}/{ticker}", params=params)
+                self.request(f"v3/{statement}/{ticker}", params=params)
                 for statement in [
                     "income-statement",
                     "balance-sheet-statement",
@@ -235,19 +228,17 @@ class FMPService:
 
         return [{k: v for statement in statements for k, v in statement.items()} for statements in zip(*results)]
 
-    async def get_statement(self, ticker: str, cik: str, period: str) -> None:
+    async def get_statement(self, ticker: str, cik: str, period: str | None = None) -> None:
         categories = await self.db.get_category_ids()
 
-        period = apply_fiscal_period_patterns(period)
-        fiscal_period = period.split()[0]
-        period_type = FiscalPeriod(fiscal_period).type
+        if period:
+            fiscal_period = period.split()[0]
+            period_type = FiscalPeriod(fiscal_period).type
+        else:
+            period_type = FiscalPeriodType.LATEST
 
         raw_statements = await self.fetch_statements(ticker, period_type)
-
-        if period_type == FiscalPeriodType.TTM:
-            statements, update_categories = self.extract_ttm_statements(raw_statements, categories, cik)
-        else:
-            statements, update_categories = self.extract_statements(raw_statements, categories)
+        statements, update_categories = self.extract_statements(raw_statements, categories, period_type, cik)
 
         logger.info(
             f"Saving financial statements for company with ticker {ticker} "
@@ -262,7 +253,7 @@ class FMPService:
         for ticker in tickers:
             for period_type in [FiscalPeriodType.ANNUAL, FiscalPeriodType.QUARTER]:
                 raw_statements = await self.fetch_statements(ticker, period_type)
-                statements, update_categories = self.extract_statements(raw_statements, categories)
+                statements, update_categories = self.extract_statements(raw_statements, categories, period_type)
 
                 logger.info(
                     f"Saving financial statements for company with ticker {ticker} "
