@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.models import Category, CategoryDefinitionType, Company, FinancialStatement, Subscription, User
 from app.schemas.schemas import CategoryBaseSchema, CategorySchema, FinancialStatementSchema
+from app.utils.utils import apply_fiscal_period_patterns
 
 
 class Database:
@@ -116,23 +117,6 @@ class Database:
             logger.error(f"Error adding categories: {e}")
             await self.session.rollback()
 
-    @staticmethod
-    def apply_fiscal_period_patterns(period: str) -> str:
-        patterns = [
-            (r"^\d{4}$", r"FY \g<0>"),  # 2000 -> FY 2000
-            (r"^(FY|Q\d)(\d{4})$", r"\1 \2"),  # Q12001 -> Q1 2001
-            (r"^(FY|Q\d)\s*(\d{4})$", r"\1 \2"),  # Q2   2002 -> Q2 2002
-            (r"^(\d{4})(FY|Q\d)$", r"\2 \1"),  # 2003Q3 -> Q3 2003
-            (r"^(\d{4})\s*(FY|Q\d)$", r"\2 \1"),  # 2004   FY -> FY 2004
-        ]
-
-        for pattern, replacement in patterns:
-            new_quarter = re.sub(pattern, replacement, period)
-            if new_quarter != period:
-                return new_quarter
-
-        return period
-
     async def add_financial_statement(self, financial_statement: FinancialStatementSchema) -> None:
         try:
             financial_statement = financial_statement.model_dump()
@@ -207,7 +191,7 @@ class Database:
         category_label: str,
         period: str,
     ) -> Result:
-        period = self.apply_fiscal_period_patterns(period)
+        period = apply_fiscal_period_patterns(period)
         # report_date = f"{period.split()[1]}-01-01"
 
         stmt = (
@@ -245,7 +229,7 @@ class Database:
     async def get_financial_statement_by_category_tag(
         self, ticker: str, value_definition_tag: str, period: str
     ) -> FinancialStatementSchema | None:
-        period = self.apply_fiscal_period_patterns(period)
+        period = apply_fiscal_period_patterns(period)
         # report_date = f"{period.split()[1]}-01-01"
 
         stmt = (
