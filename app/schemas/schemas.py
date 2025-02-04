@@ -4,8 +4,6 @@ from uuid import UUID
 
 from pydantic import BaseModel, field_validator
 
-from app.utils.utils import apply_fiscal_period_patterns
-
 category_map = {
     "AccruedIncomeTaxesCurrent": "Interest Expense",
     "AmortizationAndImpairmentOfIntangibleAssets": "Amortization",
@@ -156,11 +154,13 @@ class FinancialStatementRequest(BaseModel, str_strip_whitespace=True):
     @field_validator("period", mode="after")
     @classmethod
     def validate_period(cls, v):
+        from app.utils.utils import apply_fiscal_period_patterns
+
         return apply_fiscal_period_patterns(v.upper()) if v else v
 
 
 class FinancialStatementsRequest(BaseModel, str_strip_whitespace=True):
-    data: list[str]
+    keys: list[str]
 
 
 class CompaniesUpdateRequest(BaseModel, str_strip_whitespace=True):

@@ -64,6 +64,7 @@ class FMPDatabase(Database):
             fiscal_period = period.split()[0]
             period_type = FiscalPeriod(fiscal_period).type
         else:
+            period = FiscalPeriod.LATEST
             period_type = FiscalPeriodType.LATEST
 
         if period_type == FiscalPeriodType.TTM and not category_label.endswith("ttm"):

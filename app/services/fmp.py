@@ -153,15 +153,21 @@ class FMPService:
 
         logger.info(f"Data scraped for {data.ticker} {data.category} {data.period}")
 
-    async def get_financial_statement_by_key(self, key: str, force_update: bool) -> dict:
+    async def get_financial_statement_by_key(
+        self, key: str, force_update: bool = False, wait_response: bool = False
+    ) -> dict:
         parsed_request = parse_financial_statement_key(key)
 
-        financial_statement = await self.get_financial_statement(parsed_request, force_update=force_update)
-        value = financial_statement.value if financial_statement else 0
+        financial_statement = await self.get_financial_statement(
+            parsed_request, force_update=force_update, wait_response=wait_response
+        )
+        value = financial_statement.value if financial_statement else None
 
         return {key: value}
 
-    async def get_financial_statement(self, data: FinancialStatementRequest, force_update: bool) -> FMPSchema | None:
+    async def get_financial_statement(
+        self, data: FinancialStatementRequest, force_update: bool = False, wait_response: bool = False
+    ) -> FMPSchema | None:
         # gets value from db or None
         if not force_update:
             financial_statement = await self.db.get_first_financial_statement_by_category_label(
@@ -180,14 +186,20 @@ class FMPService:
         else:
             period_type = FiscalPeriodType.LATEST
 
-        # run bg task to calculate value
-        scheduler_service.add_job(
-            self.task_collect_financial_statement_value,
-            id=f"{data.ticker}|{period_type}",
-            misfire_grace_time=None,
-            trigger="date",
-            args=[data],
-        )
+        if wait_response:
+            await self.task_collect_financial_statement_value(data)
+            return await self.db.get_first_financial_statement_by_category_label(
+                ticker=data.ticker, category_label=data.category, period=data.period
+            )
+        else:
+            # run bg task to calculate value
+            scheduler_service.add_job(
+                self.task_collect_financial_statement_value,
+                id=f"{data.ticker}|{period_type}",
+                misfire_grace_time=None,
+                trigger="date",
+                args=[data],
+            )
 
     async def request(self, uri: str, method: RequestMethod = RequestMethod.GET, **kwargs: Any) -> dict:
         async with self.semaphore:
