@@ -9,7 +9,7 @@ from starlette import status
 
 from app.core.config import settings
 from app.database.database import Database
-from app.schemas.schemas import FulfillmentStatus, ProductId, SubscriptionType
+from app.enums.subscription import FulfillmentStatus, ProductId, SubscriptionType
 
 
 class SquarespaceService:

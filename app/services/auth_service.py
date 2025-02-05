@@ -9,7 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.connection import get_db
 from app.database.database import Database
-from app.schemas.schemas import Subscription, User
+from app.schemas.subscription import Subscription
+from app.schemas.user import User
 
 token_auth_scheme = HTTPBearer()
 

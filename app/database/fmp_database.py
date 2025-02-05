@@ -6,14 +6,14 @@ from sqlalchemy.dialects.postgresql import insert
 
 from app.database import Database
 from app.database.models import Company, FMPCategory, FMPStatement
-from app.enums.fmp import FiscalPeriod, FiscalPeriodType
-from app.schemas.fmp import FMPSchema
-from app.schemas.schemas import CategoryDefinitionType, CategorySchema
+from app.enums.fiscal_period import FiscalPeriod, FiscalPeriodType
+from app.schemas.category import Category, CategoryDefinitionType
+from app.schemas.financial_statement import FMPStatement
 from app.utils.utils import transform_category
 
 
 class FMPDatabase(Database):
-    async def get_categories_for_label(self, category_label: str, only_formulas: bool = False) -> list[CategorySchema]:
+    async def get_categories_for_label(self, category_label: str, only_formulas: bool = False) -> list[Category]:
         try:
             stmt = (
                 select(FMPCategory)
@@ -28,7 +28,7 @@ class FMPDatabase(Database):
             if not objects:
                 return []
 
-            return [CategorySchema.model_validate(obj.__dict__) for obj in objects]
+            return [Category.model_validate(obj.__dict__) for obj in objects]
         except Exception as e:
             logger.error(f"Error getting categories by label: {e}")
             await self.session.rollback()
@@ -46,7 +46,7 @@ class FMPDatabase(Database):
 
             categories = {}
             for obj in objects:
-                category = CategorySchema.model_validate(obj.__dict__)
+                category = Category.model_validate(obj.__dict__)
                 categories.setdefault(category.value_definition.lower(), []).append(category.id)
 
             return categories
@@ -97,11 +97,11 @@ class FMPDatabase(Database):
         ticker: str,
         category_label: str,
         period: str | None = None,
-    ) -> FMPSchema | None:
+    ) -> FMPStatement | None:
         result = await self._get_financial_statement_by_category_tag(ticker, category_label, period)
         obj = result.scalars().first()
         if obj:
-            return FMPSchema.model_validate(obj)
+            return FMPStatement.model_validate(obj)
         return None
 
     async def add_categories(self, financial_statements: list[dict]):
@@ -119,7 +119,7 @@ class FMPDatabase(Database):
                 categories[category_key] = category_id
                 financial_statement["category_id"] = category_id
 
-                category = CategorySchema(
+                category = Category(
                     id=category_id,
                     label=transform_category(category_key),
                     value_definition=category_key,

@@ -5,15 +5,15 @@ from functools import wraps
 from fastapi import HTTPException, status
 from loguru import logger
 
-from app.schemas.schemas import FinancialStatementRequest
+from app.schemas.financial_statement import FinancialStatementRequest
 
 
 def synchronized_request(key_func):
     def decorator(func):
         @wraps(func)
         async def wrapper(self, *args, **kwargs):
-            key = key_func(*args)
-            requests = self.requests
+            key = key_func(*kwargs.values())
+            requests = getattr(self, "requests", None)
 
             if key in requests:
                 logger.info(f"Waiting for {key}")

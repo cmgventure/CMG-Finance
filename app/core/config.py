@@ -1,4 +1,3 @@
-from hypercorn import Config
 from pydantic_settings import BaseSettings
 
 
@@ -11,6 +10,10 @@ class Settings(BaseSettings):
     POSTGRES_DB: str
     POSTGRES_HOST: str
     POSTGRES_PORT: str
+
+    POOL_SIZE: int = 100
+    MAX_OVERFLOW: int = 10
+    POOL_RECYCLE: int = 1800
 
     COUNTER: int = 10
 
@@ -40,6 +43,3 @@ class Settings(BaseSettings):
 
 
 settings = Settings(_env_file=".env")
-
-hypercorn_config = Config()
-hypercorn_config.bind = [f"{settings.APP_HOST}:{settings.APP_PORT}"]
