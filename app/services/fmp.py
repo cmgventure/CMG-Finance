@@ -12,7 +12,7 @@ from app.enums.base import RequestMethod
 from app.enums.category import CategoryDefinitionType
 from app.enums.fiscal_period import FiscalPeriod, FiscalPeriodType
 from app.models.company import Company
-from app.schemas.financial_statement import FinancialStatementRequest
+from app.schemas.financial_statement import FinancialStatementRequest, FinancialStatementsRequest
 from app.services.scheduler import scheduler_service
 from app.utils.unitofwork import ABCUnitOfWork, UnitOfWork
 from app.utils.utils import parse_financial_statement_key, synchronized_request, transform_category
@@ -112,6 +112,27 @@ class FMPService:
                     results.append({"value": str(round(v, 2)), "category_id": category_id} | base)
 
         return results, categories_to_update
+
+    async def get_financial_statements(
+        self,
+        unit_of_work: ABCUnitOfWork,
+        data: FinancialStatementsRequest,
+        force_update: bool = False,
+        wait_response: bool = False,
+    ) -> dict:
+        logger.info(f"Accepted request with {len(data.keys)} keys: {data.keys}")
+
+        parsed_statements = {}
+
+        tasks = [
+            self.get_financial_statement_by_key(unit_of_work, key, force_update, wait_response) for key in data.keys
+        ]
+        for statement in await asyncio.gather(*tasks):
+            parsed_statements.update(statement)
+
+        logger.info(f"Parsed {len(parsed_statements)} statements: {parsed_statements}")
+
+        return parsed_statements
 
     async def get_financial_statement_by_key(
         self, unit_of_work: ABCUnitOfWork, key: str, force_update: bool = False, wait_response: bool = False

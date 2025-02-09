@@ -35,6 +35,17 @@ def synchronized_request(key_func):
     return decorator
 
 
+def get_task_status(task: asyncio.Task | None = None):
+    if not task:
+        return "Not started"
+    elif task.done():
+        return "Completed"
+    elif task.cancelled():
+        return "Cancelled"
+    else:
+        return "Running"
+
+
 def parse_financial_statement_key(key: str) -> FinancialStatementRequest:
     try:
         # Split the key by '|'

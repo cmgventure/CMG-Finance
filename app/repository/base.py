@@ -8,6 +8,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import QueryableAttribute, joinedload
 
+from app.enums.base import OrderDirection
 from app.models.base import Base
 
 ModelType = TypeVar("ModelType", bound=Base)
@@ -75,9 +76,15 @@ class SQLAlchemyRepository(AbstractRepository, Generic[ModelType]):
             result = action(result)
         return result
 
-    async def get_one(self, **filters: Any) -> ModelType:
+    async def get_one(
+        self, order_by: str | None = None, order_direction: OrderDirection = OrderDirection.DESC, **filters: Any
+    ) -> ModelType:
         """
         Get one object
+
+        Args:
+            order_by: order by
+            order_direction: order direction
 
         Kwargs:
             filters: filters
@@ -87,13 +94,20 @@ class SQLAlchemyRepository(AbstractRepository, Generic[ModelType]):
         """
 
         statement = select(self.model).where(*self.get_where_clauses(filters))
+        statement = self.add_order_clause(statement, order_by, order_direction)
 
         statement = self.add_loading_options(statement)
         return await self.execute(statement=statement, action=lambda result: result.unique().scalars().one())
 
-    async def get_one_or_none(self, **filters: Any) -> ModelType | None:
+    async def get_one_or_none(
+        self, order_by: str | None = None, order_direction: OrderDirection = OrderDirection.DESC, **filters: Any
+    ) -> ModelType | None:
         """
         Get one object or None
+
+        Args:
+            order_by: order by
+            order_direction: order direction
 
         Kwargs:
             filters: filters
@@ -103,17 +117,28 @@ class SQLAlchemyRepository(AbstractRepository, Generic[ModelType]):
         """
 
         statement = select(self.model).where(*self.get_where_clauses(filters))
+        statement = self.add_order_clause(statement, order_by, order_direction)
 
         statement = self.add_loading_options(statement)
         return await self.execute(statement=statement, action=lambda result: result.unique().scalars().one_or_none())
 
-    async def get_multi(self, offset: int = 0, limit: int | None = None, /, **filters: Any) -> Sequence[ModelType]:
+    async def get_multi(
+        self,
+        offset: int = 0,
+        limit: int | None = None,
+        order_by: str | None = None,
+        order_direction: OrderDirection = OrderDirection.DESC,
+        /,
+        **filters: Any,
+    ) -> Sequence[ModelType]:
         """
         Get multiple objects
 
         Args:
             offset: offset
             limit: limit
+            order_by: order by
+            order_direction: order direction
 
         Kwargs:
             filters: filters
@@ -122,8 +147,10 @@ class SQLAlchemyRepository(AbstractRepository, Generic[ModelType]):
             List of objects
         """
 
-        statement = select(self.model).where(*self.get_where_clauses(filters)).offset(offset)
+        statement = select(self.model).where(*self.get_where_clauses(filters))
+        statement = self.add_order_clause(statement, order_by, order_direction)
 
+        statement = statement.offset(offset)
         if limit is not None:
             statement = statement.limit(limit)
 
@@ -166,6 +193,27 @@ class SQLAlchemyRepository(AbstractRepository, Generic[ModelType]):
             clauses.append(clause)
 
         return clauses
+
+    def add_order_clause(
+        self, statement: Executable, order_by: str | None = None, order_direction: OrderDirection = OrderDirection.DESC
+    ) -> Executable:
+        """
+        Add order clause to statement
+
+        Args:
+            statement: statement
+            order_by: order by
+            order_direction: order direction
+
+        Returns:
+            statement
+        """
+        field = getattr(self.model, order_by, None)
+        order_clause = getattr(field, order_direction, None)
+        if order_clause:
+            statement = statement.order_by(order_clause())
+
+        return statement
 
     async def create(self, obj_in: BaseModel | dict[str, Any]) -> ModelType:
         """

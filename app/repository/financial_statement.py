@@ -29,4 +29,4 @@ class FinancialStatementRepository(SQLAlchemyRepository[FMPStatement]):
         )
 
         statement = self.add_loading_options(statement)
-        return await self.execute(statement=statement, action=lambda result: result.unique().scalars().one())
+        return await self.execute(statement=statement, action=lambda result: result.unique().scalars().one_or_none())

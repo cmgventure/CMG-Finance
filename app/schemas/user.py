@@ -10,6 +10,6 @@ class User(Base):
     password_hash: str | None = None
 
 
-class UserSignInRequest(BaseRequest):
+class UserLoginRequest(BaseRequest):
     email: str
     password: str
