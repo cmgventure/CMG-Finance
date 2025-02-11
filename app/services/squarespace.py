@@ -8,8 +8,8 @@ from loguru import logger
 from starlette import status
 
 from app.core.config import settings
-from app.database.database import Database
-from app.schemas.schemas import FulfillmentStatus, ProductId, SubscriptionType
+from app.enums.subscription import FulfillmentStatus, ProductId, SubscriptionType
+from app.utils.unitofwork import ABCUnitOfWork
 
 
 class SquarespaceService:
@@ -19,9 +19,6 @@ class SquarespaceService:
         "User-Agent": "CMG-Finance",
         "Authorization": f"Bearer {settings.SQUARESPACE_API_KEY}",
     }
-
-    def __init__(self, db: Database) -> None:
-        self.db = db
 
     async def _get(self, url: str) -> dict:
         async with aiohttp.ClientSession() as session:
@@ -79,7 +76,7 @@ class SquarespaceService:
         url = f"{self.api_url}/commerce/transactions"
         return await self._get(url)
 
-    async def save_user(self, user_email: str) -> str:
+    async def save_user(self, unit_of_work: ABCUnitOfWork, user_email: str) -> str:
         profile = await self.get_profile(user_email)
         if not profile:
             logger.error("User profile not found")
@@ -87,11 +84,14 @@ class SquarespaceService:
 
         user = {"id": profile["id"], "email": profile["email"]}
 
-        await self.db.add_user(user)
+        async with unit_of_work:
+            await unit_of_work.user.create(user)
 
         return profile["id"]
 
-    async def save_subscription(self, user_id: str, order: dict, transaction: dict | None = None) -> None:
+    async def save_subscription(
+        self, unit_of_work: ABCUnitOfWork, user_id: str, order: dict, transaction: dict | None = None
+    ) -> None:
         subscription_type = self.get_product(
             order["lineItems"][0]["productId"],
             float(order["lineItems"][0]["unitPricePaid"]["value"]),
@@ -128,21 +128,22 @@ class SquarespaceService:
             "created_at": created_at,
             "expired_at": created_at + timedelta,
         }
-        await self.db.add_subscription(subscription)
+        async with unit_of_work:
+            await unit_of_work.subscription.create(subscription)
 
-    async def update_subscription(self, order_data: dict) -> None:
+    async def update_subscription(self, unit_of_work: ABCUnitOfWork, order_data: dict) -> None:
         order_id = order_data["data"]["orderId"]
         event_order = await self.get_order(order_id)
         profile = await self.get_profile(event_order["customerEmail"])
 
         transaction = await self.get_order_transaction(order_id)
 
-        await self.save_subscription(profile["id"], event_order, transaction)
+        await self.save_subscription(unit_of_work, profile["id"], event_order, transaction)
 
-    async def create_subscription(self, order_data: dict) -> None:
+    async def create_subscription(self, unit_of_work: ABCUnitOfWork, order_data: dict) -> None:
         order_id = order_data["data"]["orderId"]
         event_order = await self.get_order(order_id)
-        user_id = await self.save_user(event_order["customerEmail"])
+        user_id = await self.save_user(unit_of_work, event_order["customerEmail"])
 
         subscription_type = self.get_product(
             event_order["lineItems"][0]["productId"],
@@ -150,11 +151,14 @@ class SquarespaceService:
         )
 
         if subscription_type == SubscriptionType.Free:
-            if await self.db.get_subscription(user_id):
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Free trial already used",
-                )
+            async with unit_of_work:
+                if await unit_of_work.subscription.get_one_or_none(
+                    order_by="created_at", user_id=user_id, expired_at__gt=datetime.utcnow()
+                ):
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Free trial already used",
+                    )
 
             orders = await self.get_orders()
             for order in orders["result"]:
@@ -168,11 +172,11 @@ class SquarespaceService:
                     )
 
         if event_order["fulfillmentStatus"] != FulfillmentStatus.FULFILLED:
-            await self.save_subscription(user_id, event_order)
+            await self.save_subscription(unit_of_work, user_id, event_order)
             await self.fulfill_order(order_id)
         else:
             transaction = await self.get_order_transaction(order_id)
-            await self.save_subscription(user_id, event_order, transaction)
+            await self.save_subscription(unit_of_work, user_id, event_order, transaction)
 
     async def fulfill_order(self, order_id):
         url = f"{self.api_url}/commerce/orders/{order_id}/fulfillments"

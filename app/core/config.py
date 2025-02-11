@@ -1,4 +1,3 @@
-from hypercorn import Config
 from pydantic_settings import BaseSettings
 
 
@@ -12,6 +11,10 @@ class Settings(BaseSettings):
     POSTGRES_HOST: str
     POSTGRES_PORT: str
 
+    POOL_SIZE: int = 100
+    MAX_OVERFLOW: int = 10
+    POOL_RECYCLE: int = 1800
+
     COUNTER: int = 10
 
     SQUARESPACE_API_KEY: str
@@ -20,6 +23,7 @@ class Settings(BaseSettings):
 
     JWT_SECRET_KEY: str
     ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
     AWS_REGION: str
     AWSLOGS_GROUP: str
@@ -40,6 +44,3 @@ class Settings(BaseSettings):
 
 
 settings = Settings(_env_file=".env")
-
-hypercorn_config = Config()
-hypercorn_config.bind = [f"{settings.APP_HOST}:{settings.APP_PORT}"]

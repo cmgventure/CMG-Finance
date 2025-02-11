@@ -1,12 +1,13 @@
 import asyncio
-import os
 from logging.config import fileConfig
 
 from alembic import context
-from dotenv import dotenv_values
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
+
+from app.core import settings
+from app.models.base import Base
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -21,29 +22,13 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
-
-from app.database.base_class import Base
-from app.database.models import Category, CategoryDefinitionType, Company, FinancialStatement, Subscription, User
-
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
-
-
-def get_url():
-    config = dotenv_values(".env")
-    user = config.get("POSTGRES_USER", "postgres")
-    password = config.get("POSTGRES_PASSWORD", "postgres")
-    server = config.get("POSTGRES_HOST", "localhost")
-    db = config.get("POSTGRES_DB", "app")
-    port = config.get("POSTGRES_PORT", "5432")
-    return f"postgresql+asyncpg://{user}:{password}@{server}:{port}/{db}"
-
-
-config.set_main_option("sqlalchemy.url", get_url())
+config.set_main_option("sqlalchemy.url", settings.postgres_url)
 
 
 def run_migrations_offline() -> None:

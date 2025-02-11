@@ -7,6 +7,11 @@ class BaseStrEnum(StrEnum):
         return list(cls.__members__.values())
 
 
+class OrderDirection(BaseStrEnum):
+    ASC = "asc"
+    DESC = "desc"
+
+
 class RequestMethod(BaseStrEnum):
     GET = "GET"
     POST = "POST"
