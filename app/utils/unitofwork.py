@@ -53,7 +53,7 @@ class UnitOfWork(ABCUnitOfWork):
 
     async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
         if exc:
-            logger.exception("An error occurred while processing the request. Rolling back. Error: {exc}", exc=exc)
+            logger.error(f"An error occurred while processing the request. Rolling back. Error: {repr(exc)}")
             await self.session.rollback()
         else:
             await self.session.commit()

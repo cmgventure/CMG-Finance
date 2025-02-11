@@ -40,7 +40,7 @@ class FMPService:
                     response.raise_for_status()
                     return await response.json()
                 except ClientResponseError:
-                    logger.error(await response.text())
+                    logger.error(f"{method} {self.api_url}/{uri} {response.status} - Failed")
 
     @staticmethod
     def _extract_company_data(company: dict) -> dict | None:
@@ -119,10 +119,8 @@ class FMPService:
         return results, categories_to_update
 
     @staticmethod
-    async def _get_financial_statement(
-        unit_of_work: ABCUnitOfWork, data: FinancialStatementRequest
-    ) -> FMPStatement | None:
-        async with unit_of_work:
+    async def _get_financial_statement(data: FinancialStatementRequest) -> FMPStatement | None:
+        async with UnitOfWork() as unit_of_work:
             company = await unit_of_work.company.get_one_or_none(ticker=data.ticker)
             if not company:
                 return None
@@ -139,7 +137,6 @@ class FMPService:
 
     async def get_financial_statements(
         self,
-        unit_of_work: ABCUnitOfWork,
         data: FinancialStatementsRequest,
         force_update: bool = False,
         wait_response: bool = False,
@@ -148,9 +145,7 @@ class FMPService:
 
         parsed_statements = {}
 
-        tasks = [
-            self.get_financial_statement_by_key(unit_of_work, key, force_update, wait_response) for key in data.keys
-        ]
+        tasks = [self.get_financial_statement_by_key(key, force_update, wait_response) for key in data.keys]
         for statement in await asyncio.gather(*tasks):
             parsed_statements.update(statement)
 
@@ -159,7 +154,7 @@ class FMPService:
         return parsed_statements
 
     async def get_financial_statement_by_key(
-        self, unit_of_work: ABCUnitOfWork, key: str, force_update: bool = False, wait_response: bool = False
+        self, key: str, force_update: bool = False, wait_response: bool = False
     ) -> dict:
         data = parse_financial_statement_key(key)
 
@@ -175,7 +170,7 @@ class FMPService:
             data.category = f"{data.category} ttm"
 
         if not force_update:
-            financial_statement = await self._get_financial_statement(unit_of_work, data)
+            financial_statement = await self._get_financial_statement(data)
             if financial_statement is not None:
                 return {key: financial_statement.value}
 
@@ -184,7 +179,7 @@ class FMPService:
         # if there are no formula type categories, we need to scrape the data
         if wait_response:
             await self.get_financial_statement(data)
-            financial_statement = await self._get_financial_statement(unit_of_work, data)
+            financial_statement = await self._get_financial_statement(data)
             value = financial_statement.value if financial_statement else None
         else:
             # run bg task to calculate value
@@ -217,9 +212,7 @@ class FMPService:
 
     @synchronized_request(lambda ticker: ticker)
     async def update_company_if_not_exists(self, unit_of_work: ABCUnitOfWork, ticker: str) -> str | None:
-        async with unit_of_work:
-            company = await unit_of_work.company.get_one_or_none(ticker=ticker)
-
+        company = await unit_of_work.company.get_one_or_none(ticker=ticker)
         if not company:
             company = await self.add_company(unit_of_work, ticker=ticker)
 
@@ -235,8 +228,7 @@ class FMPService:
 
         logger.info(f"Get {ticker} company data")
 
-        async with unit_of_work:
-            return await unit_of_work.company.create(company_data)
+        return await unit_of_work.company.create(company_data)
 
     async def fetch_statements(self, ticker: str, period_type: FiscalPeriodType, year: int | None = None) -> list[dict]:
         # limit = datetime.now(UTC).year - year + 1 if year else 100
@@ -280,22 +272,21 @@ class FMPService:
 
         raw_statements = await self.fetch_statements(ticker, period_type)
 
-        async with unit_of_work:
-            categories = await unit_of_work.category.get_multi()
+        categories = await unit_of_work.category.get_multi()
 
-            category_ids = {}
-            for category in categories:
-                category_ids.setdefault(category.value_definition.lower(), []).append(category.id)
+        category_ids = {}
+        for category in categories:
+            category_ids.setdefault(category.value_definition.lower(), []).append(category.id)
 
-            statements, categories_to_update = self._extract_statements(raw_statements, category_ids, period_type, cik)
+        statements, categories_to_update = self._extract_statements(raw_statements, category_ids, period_type, cik)
 
-            logger.info(
-                f"Saving financial statements for company with ticker {ticker} "
-                f"and {len(statements)} financial statements"
-            )
-            if categories_to_update:
-                await unit_of_work.category.create_many(categories_to_update)
-            await unit_of_work.financial_statement.create_many(statements)
+        logger.info(
+            f"Saving financial statements for company with ticker {ticker} "
+            f"and {len(statements)} financial statements"
+        )
+        if categories_to_update:
+            await unit_of_work.category.create_many(categories_to_update)
+        await unit_of_work.financial_statement.create_many(statements)
 
     async def add_companies(self) -> None:
         companies = await self.request("v3/stock/list")
