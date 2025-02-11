@@ -3,15 +3,17 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import aiohttp
+from aiohttp import ClientResponseError
 from fastapi import HTTPException
 from loguru import logger
 from starlette import status
 
 from app.core.config import settings
-from app.enums.base import RequestMethod
+from app.enums.base import OrderDirection, RequestMethod
 from app.enums.category import CategoryDefinitionType
 from app.enums.fiscal_period import FiscalPeriod, FiscalPeriodType
 from app.models.company import Company
+from app.models.financial_statement import FMPStatement
 from app.schemas.financial_statement import FinancialStatementRequest, FinancialStatementsRequest
 from app.services.scheduler import scheduler_service
 from app.utils.unitofwork import ABCUnitOfWork, UnitOfWork
@@ -30,12 +32,15 @@ class FMPService:
 
     async def request(self, uri: str, method: RequestMethod = RequestMethod.GET, **kwargs: Any) -> dict:
         async with self.semaphore:
+            params = kwargs.setdefault("params", {})
+            params["apikey"] = settings.FMP_API_KEY
             async with aiohttp.ClientSession() as session:
-                params = kwargs.setdefault("params", {})
-                params["apikey"] = settings.FMP_API_KEY
-
-                response = await session.request(method=method, url=f"{self.api_url}/{uri}", **kwargs)
-                return await response.json()
+                try:
+                    response = await session.request(method=method, url=f"{self.api_url}/{uri}", **kwargs)
+                    response.raise_for_status()
+                    return await response.json()
+                except ClientResponseError:
+                    logger.error(await response.text())
 
     @staticmethod
     def _extract_company_data(company: dict) -> dict | None:
@@ -113,6 +118,25 @@ class FMPService:
 
         return results, categories_to_update
 
+    @staticmethod
+    async def _get_financial_statement(
+        unit_of_work: ABCUnitOfWork, data: FinancialStatementRequest
+    ) -> FMPStatement | None:
+        async with unit_of_work:
+            company = await unit_of_work.company.get_one_or_none(ticker=data.ticker)
+            if not company:
+                return None
+
+            category = await unit_of_work.category.get_one_or_none(
+                order_by="priority", order_direction=OrderDirection.ASC, label__ilike=data.category.lower()
+            )
+            if not category:
+                return None
+
+            return await unit_of_work.financial_statement.get_one_or_none(
+                cik=company.cik, category_id=category.id, period__ilike=data.period.lower()
+            )
+
     async def get_financial_statements(
         self,
         unit_of_work: ABCUnitOfWork,
@@ -150,36 +174,28 @@ class FMPService:
         if period_type == FiscalPeriodType.TTM and not data.category.endswith("ttm"):
             data.category = f"{data.category} ttm"
 
-        async with unit_of_work:
-            if not force_update:
-                company = await unit_of_work.company.get_one_or_none(ticker=data.ticker)
-                if company:
-                    financial_statement = await unit_of_work.financial_statement.get_first_by_priority(
-                        cik=company.cik, label__ilike=data.category.lower(), period__ilike=data.period.lower()
-                    )
-                    if financial_statement is not None:
-                        return financial_statement
+        if not force_update:
+            financial_statement = await self._get_financial_statement(unit_of_work, data)
+            if financial_statement is not None:
+                return {key: financial_statement.value}
 
-            # at this point, we didn't get any values for all the specified tags of the category (sorted by priority)
-            # we need to check if there are any formula type categories and calculate the value
-            # if there are no formula type categories, we need to scrape the data
-            if wait_response:
-                company = await unit_of_work.company.get_one_or_none(ticker=data.ticker)
-                await self.get_financial_statement(data)
-                financial_statement = await unit_of_work.financial_statement.get_first_by_priority(
-                    cik=company.cik, label__ilike=data.category.lower(), period__ilike=data.period.lower()
-                )
-                value = financial_statement.value if financial_statement else None
-            else:
-                # run bg task to calculate value
-                scheduler_service.add_job(
-                    self.get_financial_statement,
-                    id=f"{data.ticker}|{period_type}",
-                    misfire_grace_time=None,
-                    trigger="date",
-                    args=[data],
-                )
-                value = None
+        # at this point, we didn't get any values for all the specified tags of the category (sorted by priority)
+        # we need to check if there are any formula type categories and calculate the value
+        # if there are no formula type categories, we need to scrape the data
+        if wait_response:
+            await self.get_financial_statement(data)
+            financial_statement = await self._get_financial_statement(unit_of_work, data)
+            value = financial_statement.value if financial_statement else None
+        else:
+            # run bg task to calculate value
+            scheduler_service.add_job(
+                self.get_financial_statement,
+                id=f"{data.ticker}|{period_type}",
+                misfire_grace_time=None,
+                trigger="date",
+                args=[data],
+            )
+            value = None
 
         return {key: value}
 
@@ -249,6 +265,7 @@ class FMPService:
             ]
 
         results = await asyncio.gather(*tasks)
+        results = list(filter(None, results))
 
         return [{k: v for statement in statements for k, v in statement.items()} for statements in zip(*results)]
 

@@ -3,7 +3,7 @@ from typing import Any, Callable, Generic, Sequence, Type, TypeVar
 
 from loguru import logger
 from pydantic import BaseModel
-from sqlalchemy import Column, ColumnClause, Executable, Result, delete, func, select, update
+from sqlalchemy import Column, ColumnClause, Executable, Result, Select, delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import QueryableAttribute, joinedload
@@ -94,7 +94,8 @@ class SQLAlchemyRepository(AbstractRepository, Generic[ModelType]):
         """
 
         statement = select(self.model).where(*self.get_where_clauses(filters))
-        statement = self.add_order_clause(statement, order_by, order_direction)
+        if order_by:
+            statement = self.add_order_clause(statement, order_by, order_direction)
 
         statement = self.add_loading_options(statement)
         return await self.execute(statement=statement, action=lambda result: result.unique().scalars().one())
@@ -117,7 +118,8 @@ class SQLAlchemyRepository(AbstractRepository, Generic[ModelType]):
         """
 
         statement = select(self.model).where(*self.get_where_clauses(filters))
-        statement = self.add_order_clause(statement, order_by, order_direction)
+        if order_by:
+            statement = self.add_order_clause(statement, order_by, order_direction)
 
         statement = self.add_loading_options(statement)
         return await self.execute(statement=statement, action=lambda result: result.unique().scalars().one_or_none())
@@ -148,7 +150,8 @@ class SQLAlchemyRepository(AbstractRepository, Generic[ModelType]):
         """
 
         statement = select(self.model).where(*self.get_where_clauses(filters))
-        statement = self.add_order_clause(statement, order_by, order_direction)
+        if order_by:
+            statement = self.add_order_clause(statement, order_by, order_direction)
 
         statement = statement.offset(offset)
         if limit is not None:
@@ -195,8 +198,8 @@ class SQLAlchemyRepository(AbstractRepository, Generic[ModelType]):
         return clauses
 
     def add_order_clause(
-        self, statement: Executable, order_by: str | None = None, order_direction: OrderDirection = OrderDirection.DESC
-    ) -> Executable:
+        self, statement: Select, order_by: str, order_direction: OrderDirection = OrderDirection.DESC
+    ) -> Select:
         """
         Add order clause to statement
 
