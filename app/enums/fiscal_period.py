@@ -2,6 +2,7 @@ from app.enums.base import BaseStrEnum
 
 
 class FiscalPeriodType(BaseStrEnum):
+    HISTORICAL = "historical"
     LATEST = "latest"
     TTM = "ttm"
     ANNUAL = "annual"
@@ -9,6 +10,7 @@ class FiscalPeriodType(BaseStrEnum):
 
 
 class FiscalPeriod(BaseStrEnum):
+    HISTORICAL = "HISTORICAL"
     LATEST = "LATEST"
     TTM = "TTM"
     FY = "FY"
@@ -19,11 +21,9 @@ class FiscalPeriod(BaseStrEnum):
 
     @property
     def type(self) -> FiscalPeriodType:
-        if self == FiscalPeriod.LATEST:
-            return FiscalPeriodType.LATEST
-        elif self == FiscalPeriod.TTM:
-            return FiscalPeriodType.TTM
-        elif self == FiscalPeriod.FY:
+        if self == FiscalPeriod.FY:
             return FiscalPeriodType.ANNUAL
-        else:
+        elif self.startswith("Q"):
             return FiscalPeriodType.QUARTER
+        else:
+            return FiscalPeriodType[self]

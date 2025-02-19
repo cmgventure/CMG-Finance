@@ -1,6 +1,3 @@
-from contextlib import asynccontextmanager
-from typing import AsyncGenerator
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -11,15 +8,6 @@ from app.api.endpoints.dev import router as dev_router
 from app.api.endpoints.fmp import router as fmp_router
 from app.api.endpoints.healthcheck import router as healthcheck_router
 from app.api.endpoints.order import router as order_router
-from app.services.scheduler import scheduler_service
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator:
-    scheduler_service.start()
-    yield
-    scheduler_service.shutdown()
-
 
 origins = [
     "http://localhost:3000",
@@ -27,7 +15,7 @@ origins = [
     "https://admin.cmgfinances.com",
 ]
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,

@@ -2,6 +2,7 @@ from uuid import UUID
 
 from pydantic import constr, field_validator
 
+from app.enums.fiscal_period import FiscalPeriod, FiscalPeriodType
 from app.schemas.base import Base, BaseRequest
 
 
@@ -54,13 +55,24 @@ class FinancialStatementRequest(BaseRequest):
     category: constr(to_lower=True)
     period: str | None = None
 
-    @field_validator("period", mode="after")
+    @field_validator("period", mode="before")
     @classmethod
-    def apply_period_patterns(cls, v):
+    def apply_period_patterns(cls, v: str | None) -> str:
         from app.utils.utils import apply_fiscal_period_patterns
 
-        return apply_fiscal_period_patterns(v.upper()) if v else v
+        return apply_fiscal_period_patterns(v.upper()) if v else str(FiscalPeriod.LATEST)
+
+    @property
+    def period_type(self) -> FiscalPeriodType:
+        fiscal_period = self.period.split()[0]
+        return FiscalPeriod(fiscal_period).type
 
 
 class FinancialStatementsRequest(BaseRequest):
     keys: list[str]
+
+    @property
+    def parsed_keys(self) -> list[FinancialStatementRequest]:
+        from app.utils.utils import parse_financial_statement_key
+
+        return [parse_financial_statement_key(key) for key in self.keys]

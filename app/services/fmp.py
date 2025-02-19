@@ -4,7 +4,8 @@ from uuid import UUID, uuid4
 
 import aiohttp
 from aiohttp import ClientResponseError
-from fastapi import HTTPException
+from cachetools import TTLCache
+from fastapi import BackgroundTasks, HTTPException
 from loguru import logger
 from starlette import status
 
@@ -15,32 +16,30 @@ from app.enums.fiscal_period import FiscalPeriod, FiscalPeriodType
 from app.models.company import Company
 from app.models.financial_statement import FMPStatement
 from app.schemas.financial_statement import FinancialStatementRequest, FinancialStatementsRequest
-from app.services.scheduler import scheduler_service
 from app.utils.unitofwork import ABCUnitOfWork, UnitOfWork
 from app.utils.utils import parse_financial_statement_key, synchronized_request, transform_category
 
 
 class FMPService:
+    api_url = "https://financialmodelingprep.com/api"
+
     semaphore = asyncio.Semaphore(25)
+    cache = TTLCache(maxsize=1000, ttl=3600)
 
     requests: dict = {}
     companies_update_task: asyncio.Task | None = None
     financial_statements_update_task: asyncio.Task | None = None
 
-    def __init__(self) -> None:
-        self.api_url = "https://financialmodelingprep.com/api"
-
     async def request(self, uri: str, method: RequestMethod = RequestMethod.GET, **kwargs: Any) -> dict:
-        async with self.semaphore:
-            params = kwargs.setdefault("params", {})
-            params["apikey"] = settings.FMP_API_KEY
-            async with aiohttp.ClientSession() as session:
-                try:
-                    response = await session.request(method=method, url=f"{self.api_url}/{uri}", **kwargs)
-                    response.raise_for_status()
-                    return await response.json()
-                except ClientResponseError:
-                    logger.error(f"{method} {self.api_url}/{uri} {response.status} - Failed")
+        params = kwargs.setdefault("params", {})
+        params["apikey"] = settings.FMP_API_KEY
+        async with aiohttp.ClientSession() as session:
+            try:
+                response = await session.request(method=method, url=f"{self.api_url}/{uri}", **kwargs)
+                response.raise_for_status()
+                return await response.json()
+            except ClientResponseError:
+                logger.error(f"{method} {self.api_url}/{uri} {response.status} - Failed")
 
     @staticmethod
     def _extract_company_data(company: dict) -> dict | None:
@@ -74,24 +73,36 @@ class FMPService:
             "period",
             "link",
             "finalLink",
+            "label",
+            "recordDate",
+            "paymentDate",
+            "declarationDate",
         ]
 
         categories_to_update = []
 
         results = []
         for statement in statements:
-            if period_type in (FiscalPeriodType.LATEST, FiscalPeriod.TTM):
+            if period_type in (FiscalPeriodType.LATEST, FiscalPeriodType.TTM):
                 base = {
                     "cik": statement["cik"] if not cik else cik,
                     "period": period_type,
                     "report_date": period_type,
                     "filing_date": period_type,
                 }
+            elif period_type == FiscalPeriodType.HISTORICAL:
+                year = statement["date"].split("-")[0]
+                base = {
+                    "cik": cik,
+                    "period": f"{FiscalPeriod.FY} {year}",
+                    "report_date": statement["date"],
+                    "filing_date": statement["date"],
+                }
             else:
                 base = {
                     "cik": statement["cik"] if not cik else cik,
                     "period": f"{statement['period']} {statement['calendarYear']}",
-                    "report_date": statement["acceptedDate"],
+                    "report_date": statement["date"],
                     "filing_date": statement["fillingDate"],
                 }
 
@@ -100,7 +111,7 @@ class FMPService:
                     continue
 
                 for category_id in category_ids.get(k.lower(), []):
-                    results.append({"value": str(round(v, 2)), "category_id": category_id} | base)
+                    results.append({"value": str(round(v, 4)), "category_id": category_id} | base)
                 if not category_ids.get(k.lower()):
                     category_id = uuid4()
                     category_ids[k.lower()] = [category_id]
@@ -114,29 +125,13 @@ class FMPService:
                             "priority": 1,
                         }
                     )
-                    results.append({"value": str(round(v, 2)), "category_id": category_id} | base)
+                    results.append({"value": str(round(v, 4)), "category_id": category_id} | base)
 
         return results, categories_to_update
 
-    @staticmethod
-    async def _get_financial_statement(data: FinancialStatementRequest) -> FMPStatement | None:
-        async with UnitOfWork() as unit_of_work:
-            company = await unit_of_work.company.get_one_or_none(ticker=data.ticker)
-            if not company:
-                return None
-
-            category = await unit_of_work.category.get_one_or_none(
-                order_by="priority", order_direction=OrderDirection.ASC, label__ilike=data.category.lower()
-            )
-            if not category:
-                return None
-
-            return await unit_of_work.financial_statement.get_one_or_none(
-                cik=company.cik, category_id=category.id, period__ilike=data.period.lower()
-            )
-
     async def get_financial_statements(
         self,
+        background_tasks: BackgroundTasks,
         data: FinancialStatementsRequest,
         force_update: bool = False,
         wait_response: bool = False,
@@ -145,7 +140,9 @@ class FMPService:
 
         parsed_statements = {}
 
-        tasks = [self.get_financial_statement_by_key(key, force_update, wait_response) for key in data.keys]
+        tasks = [
+            self.get_financial_statement_by_key(background_tasks, key, force_update, wait_response) for key in data.keys
+        ]
         for statement in await asyncio.gather(*tasks):
             parsed_statements.update(statement)
 
@@ -154,61 +151,86 @@ class FMPService:
         return parsed_statements
 
     async def get_financial_statement_by_key(
-        self, key: str, force_update: bool = False, wait_response: bool = False
+        self, background_tasks: BackgroundTasks, key: str, force_update: bool = False, wait_response: bool = False
     ) -> dict:
         data = parse_financial_statement_key(key)
+        value = await self.get_financial_statement(background_tasks, data, force_update, wait_response)
+        return {key: value}
 
-        # gets value from db or None
-        if data.period:
-            fiscal_period = data.period.split()[0]
-            period_type = FiscalPeriod(fiscal_period).type
-        else:
-            data.period = FiscalPeriod.LATEST
-            period_type = FiscalPeriodType.LATEST
-
-        if period_type == FiscalPeriodType.TTM and not data.category.endswith("ttm"):
+    async def get_financial_statement(
+        self,
+        background_tasks: BackgroundTasks,
+        data: FinancialStatementRequest,
+        force_update: bool = False,
+        wait_response: bool = False,
+    ) -> str:
+        if data.period_type == FiscalPeriodType.TTM and not data.category.endswith("ttm"):
             data.category = f"{data.category} ttm"
 
         if not force_update:
+            # gets value from db or None
             financial_statement = await self._get_financial_statement(data)
             if financial_statement is not None:
-                return {key: financial_statement.value}
+                return financial_statement.value
 
         # at this point, we didn't get any values for all the specified tags of the category (sorted by priority)
         # we need to check if there are any formula type categories and calculate the value
         # if there are no formula type categories, we need to scrape the data
-        if wait_response:
-            await self.get_financial_statement(data)
+        cache_key = f"{data.ticker}|{data.period_type}"
+        cache_value = self.cache.get(cache_key)
+
+        value = None
+
+        if cache_value and force_update:
+            financial_statement = await self._get_financial_statement(data)
+            value = financial_statement.value if financial_statement else None
+        elif cache_value:
+            value = None
+        elif wait_response:
+            self.cache[cache_key] = True
+            await self.update_financial_statement(data)
             financial_statement = await self._get_financial_statement(data)
             value = financial_statement.value if financial_statement else None
         else:
             # run bg task to calculate value
-            scheduler_service.add_job(
-                self.get_financial_statement,
-                id=f"{data.ticker}|{period_type}",
-                misfire_grace_time=None,
-                trigger="date",
-                args=[data],
-            )
-            value = None
+            self.cache[cache_key] = True
+            background_tasks.add_task(self.update_financial_statement, data)
 
-        return {key: value}
+        return value
 
-    async def get_financial_statement(self, data: FinancialStatementRequest) -> None:
-        async with UnitOfWork() as unit_of_work:
-            logger.info(f"Scraping data for {data.ticker} {data.category} {data.period}")
+    async def _get_financial_statement(self, data: FinancialStatementRequest) -> FMPStatement | None:
+        async with self.semaphore:
+            async with UnitOfWork() as unit_of_work:
+                company = await unit_of_work.company.get_one_or_none(ticker=data.ticker)
+                if not company:
+                    return None
 
-            cik = await self.update_company_if_not_exists(unit_of_work, ticker=data.ticker)
-            if not cik:
-                logger.error(f"Company not found for stock ticker {data.ticker}")
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Company not found for stock ticker {data.ticker}",
+                category = await unit_of_work.category.get_one_or_none(
+                    order_by="priority", order_direction=OrderDirection.ASC, label__ilike=data.category.lower()
+                )
+                if not category:
+                    return None
+
+                return await unit_of_work.financial_statement.get_one_or_none(
+                    cik=company.cik, category_id=category.id, period__ilike=data.period.lower()
                 )
 
-            await self.add_statement(unit_of_work, cik=cik, ticker=data.ticker, period=data.period)
+    async def update_financial_statement(self, data: FinancialStatementRequest) -> None:
+        async with self.semaphore:
+            async with UnitOfWork() as unit_of_work:
+                logger.info(f"Scraping data for {data.ticker} {data.category} {data.period}")
 
-            logger.info(f"Data scraped for {data.ticker} {data.category} {data.period}")
+                cik = await self.update_company_if_not_exists(unit_of_work, ticker=data.ticker)
+                if not cik:
+                    logger.error(f"Company not found for stock ticker {data.ticker}")
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Company not found for stock ticker {data.ticker}",
+                    )
+
+                await self.add_statement(unit_of_work, cik=cik, ticker=data.ticker, period=data.period)
+
+                logger.info(f"Data scraped for {data.ticker} {data.category} {data.period}")
 
     @synchronized_request(lambda ticker: ticker)
     async def update_company_if_not_exists(self, unit_of_work: ABCUnitOfWork, ticker: str) -> str | None:
@@ -219,7 +241,7 @@ class FMPService:
         return company.cik if company else None
 
     async def add_company(self, unit_of_work: ABCUnitOfWork, ticker: str) -> Company | None:
-        companies = await self.request(f"profile/{ticker}")
+        companies = await self.request(f"v3/profile/{ticker}")
         if not companies:
             return
 
@@ -242,6 +264,13 @@ class FMPService:
             ]
         elif period_type == FiscalPeriodType.TTM:
             tasks = [self.request(f"v3/{statement}/{ticker}") for statement in ["key-metrics-ttm", "ratios-ttm"]]
+        elif period_type == FiscalPeriodType.HISTORICAL:
+            tasks = [
+                self.request(f"v3/{statement}/{ticker}")
+                for statement in [
+                    "historical-price-full/stock_dividend",
+                ]
+            ]
         else:
             params = {"period": period_type}
 
@@ -251,12 +280,17 @@ class FMPService:
                     "income-statement",
                     "balance-sheet-statement",
                     "cash-flow-statement",
+                    "income-statement-growth",
+                    "balance-sheet-statement-growth",
+                    "cash-flow-statement-growth",
                     "key-metrics",
                     "ratios",
                 ]
             ]
 
         results = await asyncio.gather(*tasks)
+        if period_type == FiscalPeriodType.HISTORICAL:
+            results = [result.get("historical") for result in results]
         results = list(filter(None, results))
 
         return [{k: v for statement in statements for k, v in statement.items()} for statements in zip(*results)]
@@ -270,15 +304,22 @@ class FMPService:
         else:
             period_type = FiscalPeriodType.LATEST
 
-        raw_statements = await self.fetch_statements(ticker, period_type)
-
         categories = await unit_of_work.category.get_multi()
 
         category_ids = {}
         for category in categories:
             category_ids.setdefault(category.value_definition.lower(), []).append(category.id)
 
+        raw_statements = await self.fetch_statements(ticker, period_type)
+
         statements, categories_to_update = self._extract_statements(raw_statements, category_ids, period_type, cik)
+        if period_type in (FiscalPeriodType.ANNUAL, FiscalPeriodType.QUARTER):
+            raw_historical_statements = await self.fetch_statements(ticker, FiscalPeriodType.HISTORICAL)
+            historical_statements, historical_categories_to_update = self._extract_statements(
+                raw_historical_statements, category_ids, FiscalPeriodType.HISTORICAL, cik
+            )
+            statements.extend(historical_statements)
+            categories_to_update.extend(historical_categories_to_update)
 
         logger.info(
             f"Saving financial statements for company with ticker {ticker} "
