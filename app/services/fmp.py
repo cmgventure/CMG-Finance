@@ -4,7 +4,6 @@ from uuid import UUID, uuid4
 
 import aiohttp
 from aiohttp import ClientResponseError
-from cachetools import TTLCache
 from fastapi import BackgroundTasks, HTTPException
 from loguru import logger
 from starlette import status
@@ -24,7 +23,6 @@ class FMPService:
     api_url = "https://financialmodelingprep.com/api"
 
     semaphore = asyncio.Semaphore(25)
-    cache = TTLCache(maxsize=1000, ttl=3600)
 
     requests: dict = {}
     companies_update_task: asyncio.Task | None = None
@@ -36,10 +34,12 @@ class FMPService:
         async with aiohttp.ClientSession() as session:
             try:
                 response = await session.request(method=method, url=f"{self.api_url}/{uri}", **kwargs)
+                await response.read()
                 response.raise_for_status()
                 return await response.json()
             except ClientResponseError:
                 logger.error(f"{method} {self.api_url}/{uri} {response.status} - Failed")
+                raise HTTPException(status_code=response.status, detail=await response.text())
 
     @staticmethod
     def _extract_company_data(company: dict) -> dict | None:
@@ -129,6 +129,23 @@ class FMPService:
 
         return results, categories_to_update
 
+    @staticmethod
+    async def _get_financial_statement(data: FinancialStatementRequest) -> FMPStatement | None:
+        async with UnitOfWork() as unit_of_work:
+            company = await unit_of_work.company.get_one_or_none(ticker=data.ticker)
+            if not company:
+                return None
+
+            category = await unit_of_work.category.get_one_or_none(
+                order_by="priority", order_direction=OrderDirection.ASC, label__ilike=data.category.lower()
+            )
+            if not category:
+                return None
+
+            return await unit_of_work.financial_statement.get_one_or_none(
+                cik=company.cik, category_id=category.id, period__ilike=data.period.lower()
+            )
+
     async def get_financial_statements(
         self,
         background_tasks: BackgroundTasks,
@@ -154,16 +171,19 @@ class FMPService:
         self, background_tasks: BackgroundTasks, key: str, force_update: bool = False, wait_response: bool = False
     ) -> dict:
         data = parse_financial_statement_key(key)
-        value = await self.get_financial_statement(background_tasks, data, force_update, wait_response)
+        value = await self.get_financial_statement(
+            background_tasks, data, force_update, wait_response, key=f"{data.ticker}|{data.period_type}"
+        )
         return {key: value}
 
+    @synchronized_request
     async def get_financial_statement(
         self,
         background_tasks: BackgroundTasks,
         data: FinancialStatementRequest,
         force_update: bool = False,
         wait_response: bool = False,
-    ) -> str:
+    ) -> str | None:
         if data.period_type == FiscalPeriodType.TTM and not data.category.endswith("ttm"):
             data.category = f"{data.category} ttm"
 
@@ -176,63 +196,35 @@ class FMPService:
         # at this point, we didn't get any values for all the specified tags of the category (sorted by priority)
         # we need to check if there are any formula type categories and calculate the value
         # if there are no formula type categories, we need to scrape the data
-        cache_key = f"{data.ticker}|{data.period_type}"
-        cache_value = self.cache.get(cache_key)
-
         value = None
 
-        if cache_value and force_update:
-            financial_statement = await self._get_financial_statement(data)
-            value = financial_statement.value if financial_statement else None
-        elif cache_value:
-            value = None
-        elif wait_response:
-            self.cache[cache_key] = True
+        if wait_response:
             await self.update_financial_statement(data)
             financial_statement = await self._get_financial_statement(data)
             value = financial_statement.value if financial_statement else None
         else:
             # run bg task to calculate value
-            self.cache[cache_key] = True
             background_tasks.add_task(self.update_financial_statement, data)
 
         return value
 
-    async def _get_financial_statement(self, data: FinancialStatementRequest) -> FMPStatement | None:
-        async with self.semaphore:
-            async with UnitOfWork() as unit_of_work:
-                company = await unit_of_work.company.get_one_or_none(ticker=data.ticker)
-                if not company:
-                    return None
-
-                category = await unit_of_work.category.get_one_or_none(
-                    order_by="priority", order_direction=OrderDirection.ASC, label__ilike=data.category.lower()
-                )
-                if not category:
-                    return None
-
-                return await unit_of_work.financial_statement.get_one_or_none(
-                    cik=company.cik, category_id=category.id, period__ilike=data.period.lower()
-                )
-
     async def update_financial_statement(self, data: FinancialStatementRequest) -> None:
-        async with self.semaphore:
-            async with UnitOfWork() as unit_of_work:
-                logger.info(f"Scraping data for {data.ticker} {data.category} {data.period}")
+        async with UnitOfWork() as unit_of_work:
+            logger.info(f"Scraping data for {data.ticker} {data.category} {data.period}")
 
-                cik = await self.update_company_if_not_exists(unit_of_work, ticker=data.ticker)
-                if not cik:
-                    logger.error(f"Company not found for stock ticker {data.ticker}")
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail=f"Company not found for stock ticker {data.ticker}",
-                    )
+            cik = await self.update_company_if_not_exists(unit_of_work, ticker=data.ticker, key=data.ticker)
+            if not cik:
+                logger.error(f"Company not found for stock ticker {data.ticker}")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Company not found for stock ticker {data.ticker}",
+                )
 
-                await self.add_statement(unit_of_work, cik=cik, ticker=data.ticker, period=data.period)
+            await self.add_statement(unit_of_work, cik=cik, ticker=data.ticker, period=data.period)
 
-                logger.info(f"Data scraped for {data.ticker} {data.category} {data.period}")
+            logger.info(f"Data scraped for {data.ticker} {data.category} {data.period}")
 
-    @synchronized_request(lambda ticker: ticker)
+    @synchronized_request
     async def update_company_if_not_exists(self, unit_of_work: ABCUnitOfWork, ticker: str) -> str | None:
         company = await unit_of_work.company.get_one_or_none(ticker=ticker)
         if not company:

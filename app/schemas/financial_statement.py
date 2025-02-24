@@ -1,6 +1,7 @@
+from typing import Self
 from uuid import UUID
 
-from pydantic import constr, field_validator
+from pydantic import constr, field_validator, model_validator
 
 from app.enums.fiscal_period import FiscalPeriod, FiscalPeriodType
 from app.schemas.base import Base, BaseRequest
@@ -66,6 +67,14 @@ class FinancialStatementRequest(BaseRequest):
     def period_type(self) -> FiscalPeriodType:
         fiscal_period = self.period.split()[0]
         return FiscalPeriod(fiscal_period).type
+
+    @model_validator(mode="after")
+    def validate_period_type(self) -> Self:
+        try:
+            _ = self.period_type
+        except Exception:
+            raise ValueError(f"Invalid period format: {self.period}")
+        return self
 
 
 class FinancialStatementsRequest(BaseRequest):
