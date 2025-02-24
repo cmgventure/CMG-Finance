@@ -130,7 +130,6 @@ class SQLAlchemyRepository(AbstractRepository, Generic[ModelType]):
         limit: int | None = None,
         order_by: str | None = None,
         order_direction: OrderDirection = OrderDirection.DESC,
-        /,
         **filters: Any,
     ) -> Sequence[ModelType]:
         """

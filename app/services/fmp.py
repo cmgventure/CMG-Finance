@@ -62,7 +62,7 @@ class FMPService:
         period_type: FiscalPeriodType,
         cik: str | None = None,
     ) -> tuple[list[dict], list[dict]]:
-        not_value_keys = [
+        not_value_keys = {
             "date",
             "symbol",
             "reportedCurrency",
@@ -77,15 +77,17 @@ class FMPService:
             "recordDate",
             "paymentDate",
             "declarationDate",
-        ]
+        }
 
         categories_to_update = []
-
         results = []
+        historical_results = {}
+
         for statement in statements:
             if period_type in (FiscalPeriodType.LATEST, FiscalPeriodType.TTM):
+                cik = cik or statement.get("cik")
                 base = {
-                    "cik": statement["cik"] if not cik else cik,
+                    "cik": cik,
                     "period": period_type,
                     "report_date": period_type,
                     "filing_date": period_type,
@@ -100,7 +102,7 @@ class FMPService:
                 }
             else:
                 base = {
-                    "cik": statement["cik"] if not cik else cik,
+                    "cik": cik,
                     "period": f"{statement['period']} {statement['calendarYear']}",
                     "report_date": statement["date"],
                     "filing_date": statement["fillingDate"],
@@ -110,8 +112,8 @@ class FMPService:
                 if v is None or k in not_value_keys:
                     continue
 
-                for category_id in category_ids.get(k.lower(), []):
-                    results.append({"value": str(round(v, 4)), "category_id": category_id} | base)
+                value = round(v, 4)
+
                 if not category_ids.get(k.lower()):
                     category_id = uuid4()
                     category_ids[k.lower()] = [category_id]
@@ -125,7 +127,20 @@ class FMPService:
                             "priority": 1,
                         }
                     )
-                    results.append({"value": str(round(v, 4)), "category_id": category_id} | base)
+
+                for category_id in category_ids.get(k.lower(), []):
+                    result = {"value": str(value), "category_id": category_id} | base
+                    if period_type != FiscalPeriodType.HISTORICAL:
+                        results.append(result)
+                        continue
+
+                    key = f"{result['period']}_{category_id}"
+                    if historical_result := historical_results.get(key):
+                        historical_result["value"] = str(round(float(historical_result["value"]) + value, 4))
+                    else:
+                        historical_results[key] = result
+
+        results.extend(historical_results.values())
 
         return results, categories_to_update
 
@@ -305,7 +320,7 @@ class FMPService:
         raw_statements = await self.fetch_statements(ticker, period_type)
 
         statements, categories_to_update = self._extract_statements(raw_statements, category_ids, period_type, cik)
-        if period_type in (FiscalPeriodType.ANNUAL, FiscalPeriodType.QUARTER):
+        if period_type == FiscalPeriodType.ANNUAL:
             raw_historical_statements = await self.fetch_statements(ticker, FiscalPeriodType.HISTORICAL)
             historical_statements, historical_categories_to_update = self._extract_statements(
                 raw_historical_statements, category_ids, FiscalPeriodType.HISTORICAL, cik
