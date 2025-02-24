@@ -121,6 +121,10 @@ class AuthService:
             if user_subscription:
                 user_subscription = Subscription.model_validate(user_subscription.__dict__)
 
+        if not user_subscription and not user.superuser:
+            logger.error(f"Access Denied, user {user.email} is not a superuser")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied")
+
         return User(
             id=user.id,
             email=user.email,

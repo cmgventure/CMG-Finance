@@ -1,5 +1,4 @@
-from sqlalchemy import UUID, Column, ForeignKey, String
-from sqlalchemy.dialects.postgresql import MONEY
+from sqlalchemy import UUID, Column, ForeignKey, Numeric, String
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base
@@ -13,7 +12,7 @@ class FinancialStatement(Base):
     report_date = Column(String, primary_key=True)
 
     form = Column(String)
-    value = Column(MONEY)
+    value = Column(Numeric(20, 4))
 
     cik = Column(String, ForeignKey("companies.cik"), primary_key=True)
     category_id = Column(UUID(as_uuid=True), ForeignKey("categories.id"), primary_key=True)
@@ -29,7 +28,7 @@ class FMPStatement(Base):
     filing_date = Column(String, primary_key=True)
     report_date = Column(String, primary_key=True)
 
-    value = Column(MONEY)
+    value = Column(Numeric(20, 4))
 
     cik = Column(String, ForeignKey("companies.cik"), primary_key=True)
     category_id = Column(UUID(as_uuid=True), ForeignKey("fmp_categories.id"), primary_key=True)

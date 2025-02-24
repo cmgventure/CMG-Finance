@@ -8,31 +8,30 @@ from loguru import logger
 from app.schemas.financial_statement import FinancialStatementRequest
 
 
-def synchronized_request(key_func):
-    def decorator(func):
-        @wraps(func)
-        async def wrapper(self, *args, **kwargs):
-            key = key_func(*kwargs.values())
-            requests = getattr(self, "requests", None)
+def synchronized_request(func):
+    @wraps(func)
+    async def wrapper(self, *args, **kwargs):
+        key = kwargs.pop("key", None)
+        requests = getattr(self, "requests", None)
 
-            if key in requests:
-                logger.info(f"Waiting for {key}")
-                await requests[key].wait()
-            else:
-                requests[key] = asyncio.Event()
+        if requests is None:
+            logger.info(f"No requests")
+        elif key in requests:
+            logger.info(f"Waiting for {key}")
+            await requests[key].wait()
+        else:
+            requests[key] = asyncio.Event()
 
-            try:
-                result = await func(self, *args, **kwargs)
-            finally:
-                if key in requests:
-                    event = requests.pop(key)
-                    event.set()
+        try:
+            result = await func(self, *args, **kwargs)
+        finally:
+            if requests is not None and key in requests:
+                event = requests.pop(key)
+                event.set()
 
-            return result
+        return result
 
-        return wrapper
-
-    return decorator
+    return wrapper
 
 
 def get_task_status(task: asyncio.Task | None = None):
