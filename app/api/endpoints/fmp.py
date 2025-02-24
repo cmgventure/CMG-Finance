@@ -14,7 +14,7 @@ async def get_statement(
     data: FinancialStatementRequest,
     force_update: bool = False,
     wait_response: bool = False,
-) -> str | None:
+) -> float | None:
     return await service.get_financial_statement(
         background_tasks, data, force_update, wait_response, key=f"{data.ticker}|{data.period_type}"
     )
@@ -28,5 +28,5 @@ async def get_statements(
     data: FinancialStatementsRequest,
     force_update: bool = False,
     wait_response: bool = False,
-) -> dict:
+) -> dict[str, float | None]:
     return await service.get_financial_statements(background_tasks, data, force_update, wait_response)

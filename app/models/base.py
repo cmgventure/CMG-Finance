@@ -14,7 +14,7 @@ class Base(DeclarativeBase):
         dict[str, Any]: postgresql.JSON,
         list[dict[str, Any]]: postgresql.ARRAY(postgresql.JSON),
         list[str]: postgresql.ARRAY(String),
-        Decimal: postgresql.NUMERIC(10, 2),
+        Decimal: postgresql.NUMERIC(20, 4),
         datetime: DateTime(timezone=True),
         bool: Boolean,
     }

@@ -169,7 +169,7 @@ class FMPService:
 
     async def get_financial_statement_by_key(
         self, background_tasks: BackgroundTasks, key: str, force_update: bool = False, wait_response: bool = False
-    ) -> dict:
+    ) -> dict[str, float | None]:
         data = parse_financial_statement_key(key)
         value = await self.get_financial_statement(
             background_tasks, data, force_update, wait_response, key=f"{data.ticker}|{data.period_type}"
@@ -183,7 +183,7 @@ class FMPService:
         data: FinancialStatementRequest,
         force_update: bool = False,
         wait_response: bool = False,
-    ) -> str | None:
+    ) -> float | None:
         if data.period_type == FiscalPeriodType.TTM and not data.category.endswith("ttm"):
             data.category = f"{data.category} ttm"
 
