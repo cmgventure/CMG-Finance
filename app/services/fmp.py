@@ -4,12 +4,12 @@ from uuid import UUID, uuid4
 
 import aiohttp
 from aiohttp import ClientResponseError
-from fastapi import BackgroundTasks, HTTPException
+from fastapi import HTTPException
 from loguru import logger
 from starlette import status
 
 from app.core.config import settings
-from app.enums.base import OrderDirection, RequestMethod
+from app.enums.base import RequestMethod
 from app.enums.category import CategoryDefinitionType
 from app.enums.fiscal_period import FiscalPeriod, FiscalPeriodType
 from app.models.company import Company
@@ -147,23 +147,12 @@ class FMPService:
     @staticmethod
     async def _get_financial_statement(data: FinancialStatementRequest) -> FMPStatement | None:
         async with UnitOfWork() as unit_of_work:
-            company = await unit_of_work.company.get_one_or_none(ticker=data.ticker)
-            if not company:
-                return None
-
-            category = await unit_of_work.category.get_one_or_none(
-                order_by="priority", order_direction=OrderDirection.ASC, label__ilike=data.category.lower()
-            )
-            if not category:
-                return None
-
             return await unit_of_work.financial_statement.get_one_or_none(
-                cik=company.cik, category_id=category.id, period__ilike=data.period.lower()
+                ticker=data.ticker, label=data.category.lower(), period__ilike=data.period.lower()
             )
 
     async def get_financial_statements(
         self,
-        background_tasks: BackgroundTasks,
         data: FinancialStatementsRequest,
         force_update: bool = False,
         wait_response: bool = False,
@@ -172,9 +161,7 @@ class FMPService:
 
         parsed_statements = {}
 
-        tasks = [
-            self.get_financial_statement_by_key(background_tasks, key, force_update, wait_response) for key in data.keys
-        ]
+        tasks = [self.get_financial_statement_by_key(key, force_update, wait_response) for key in data.keys]
         for statement in await asyncio.gather(*tasks):
             parsed_statements.update(statement)
 
@@ -183,22 +170,28 @@ class FMPService:
         return parsed_statements
 
     async def get_financial_statement_by_key(
-        self, background_tasks: BackgroundTasks, key: str, force_update: bool = False, wait_response: bool = False
+        self, key: str, force_update: bool = False, wait_response: bool = False
     ) -> dict[str, float | None]:
         data = parse_financial_statement_key(key)
-        value = await self.get_financial_statement(
-            background_tasks, data, force_update, wait_response, key=f"{data.ticker}|{data.period_type}"
-        )
+        try:
+            value = await self.get_financial_statement(data, force_update, wait_response)
+        except HTTPException as e:
+            logger.error(e.detail)
+            value = None
+        except Exception as e:
+            logger.error(str(e))
+            value = None
+
         return {key: value}
 
-    @synchronized_request
     async def get_financial_statement(
         self,
-        background_tasks: BackgroundTasks,
         data: FinancialStatementRequest,
         force_update: bool = False,
         wait_response: bool = False,
     ) -> float | None:
+        logger.info(f"Accepted {data} request")
+
         if data.period_type == FiscalPeriodType.TTM and not data.category.endswith("ttm"):
             data.category = f"{data.category} ttm"
 
@@ -212,22 +205,23 @@ class FMPService:
         # we need to check if there are any formula type categories and calculate the value
         # if there are no formula type categories, we need to scrape the data
         value = None
-
+        key = f"{data.ticker}|{data.period_type}"
         if wait_response:
-            await self.update_financial_statement(data)
+            logger.info(f"Updating financial statement, {key=}")
+            await self.update_financial_statement(data, key=key)
             financial_statement = await self._get_financial_statement(data)
             value = financial_statement.value if financial_statement else None
         else:
             # run bg task to calculate value
-            background_tasks.add_task(self.update_financial_statement, data)
+            logger.info(f"Creating financial statement update task, {key=}")
+            task = asyncio.create_task(self.update_financial_statement(data, key=key))
 
         return value
 
+    @synchronized_request
     async def update_financial_statement(self, data: FinancialStatementRequest) -> None:
         async with UnitOfWork() as unit_of_work:
-            logger.info(f"Scraping data for {data.ticker} {data.category} {data.period}")
-
-            cik = await self.update_company_if_not_exists(unit_of_work, ticker=data.ticker, key=data.ticker)
+            cik = await self.update_company_if_not_exists(unit_of_work, data.ticker)
             if not cik:
                 logger.error(f"Company not found for stock ticker {data.ticker}")
                 raise HTTPException(
@@ -235,18 +229,23 @@ class FMPService:
                     detail=f"Company not found for stock ticker {data.ticker}",
                 )
 
+            logger.info(f"Scraping data for {data.ticker} {data.period_type}")
+
             await self.add_statement(unit_of_work, cik=cik, ticker=data.ticker, period=data.period)
 
-            logger.info(f"Data scraped for {data.ticker} {data.category} {data.period}")
+            logger.info(f"Data scraped for {data.ticker} {data.period_type}")
 
-    @synchronized_request
     async def update_company_if_not_exists(self, unit_of_work: ABCUnitOfWork, ticker: str) -> str | None:
         company = await unit_of_work.company.get_one_or_none(ticker=ticker)
         if not company:
-            company = await self.add_company(unit_of_work, ticker=ticker)
+            key = ticker
+            logger.info(f"Updating company, {key=}")
+            await self.add_company(unit_of_work, ticker=ticker, key=key)
+            company = await unit_of_work.company.get_one_or_none(ticker=ticker)
 
         return company.cik if company else None
 
+    @synchronized_request
     async def add_company(self, unit_of_work: ABCUnitOfWork, ticker: str) -> Company | None:
         companies = await self.request(f"v3/profile/{ticker}")
         if not companies:

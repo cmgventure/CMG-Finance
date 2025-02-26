@@ -1,32 +1,54 @@
 from typing import Any
 
-from sqlalchemy import asc, desc, select
+from loguru import logger
+from sqlalchemy import select
 
+from app.enums.base import OrderDirection
+from app.models import Company
 from app.models.category import FMPCategory
 from app.models.financial_statement import FMPStatement
-from app.repository.base import SQLAlchemyRepository
+from app.repository.base import ModelType, SQLAlchemyRepository
 
 
 class FinancialStatementRepository(SQLAlchemyRepository[FMPStatement]):
     model = FMPStatement
     join_load_list = [FMPStatement.company, FMPStatement.fmp_category]
 
-    async def get_first_by_priority(self, **filters: Any) -> FMPStatement:
+    async def get_one_or_none(
+        self, order_by: str | None = None, order_direction: OrderDirection = OrderDirection.DESC, **filters: Any
+    ) -> ModelType | None:
         """
-        Get one object by priority
+        Get one object or None
+
+        Args:
+            order_by: order by
+            order_direction: order direction
 
         Kwargs:
             filters: filters
 
         Returns:
-            Object
+            Object or None
         """
+        logger.debug(f"Getting one or none of {self.model_name} with {order_by=}, {filters=}")
+
+        where_clauses = []
+
+        if ticker := filters.pop("ticker", None):
+            where_clauses.append(Company.ticker.__eq__(ticker))
+
+        if label := filters.pop("label", None):
+            where_clauses.append(FMPCategory.label.ilike(label))
+
+        where_clauses.extend(self.get_where_clauses(filters))
 
         statement = (
             select(self.model)
-            .where(*self.get_where_clauses(filters))
-            .order_by(asc(FMPCategory.priority), desc(self.model.filing_date), desc(self.model.report_date))
+            .join(Company, FMPStatement.cik == Company.cik)
+            .join(FMPCategory, FMPStatement.category_id == FMPCategory.id)
+            .where(*where_clauses)
         )
+        if order_by:
+            statement = self.add_order_clause(statement, order_by, order_direction)
 
-        statement = self.add_loading_options(statement)
         return await self.execute(statement=statement, action=lambda result: result.unique().scalars().one_or_none())

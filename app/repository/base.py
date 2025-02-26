@@ -92,6 +92,7 @@ class SQLAlchemyRepository(AbstractRepository, Generic[ModelType]):
         Returns:
             Object
         """
+        logger.debug(f"Getting one of {self.model_name} with {order_by=}, {filters=}")
 
         statement = select(self.model).where(*self.get_where_clauses(filters))
         if order_by:
@@ -116,6 +117,7 @@ class SQLAlchemyRepository(AbstractRepository, Generic[ModelType]):
         Returns:
             Object or None
         """
+        logger.debug(f"Getting one or none of {self.model_name} with {order_by=}, {filters=}")
 
         statement = select(self.model).where(*self.get_where_clauses(filters))
         if order_by:
@@ -147,6 +149,7 @@ class SQLAlchemyRepository(AbstractRepository, Generic[ModelType]):
         Returns:
             List of objects
         """
+        logger.debug(f"Getting {self.model_name} with {order_by=}, {filters=}")
 
         statement = select(self.model).where(*self.get_where_clauses(filters))
         if order_by:
@@ -310,6 +313,7 @@ class SQLAlchemyRepository(AbstractRepository, Generic[ModelType]):
         Returns:
             Count of objects
         """
+        logger.debug(f"Getting count of {self.model_name} with {filters=}")
 
         statement = select(func.count(self.model.id)).where(*self.get_where_clauses(filters))
 

@@ -15,10 +15,11 @@ def synchronized_request(func):
         requests = getattr(self, "requests", None)
 
         if requests is None:
-            logger.info(f"No requests")
+            logger.info(f"No requests in {self.__class__.__name__}")
         elif key in requests:
             logger.info(f"Waiting for {key}")
             await requests[key].wait()
+            return None
         else:
             requests[key] = asyncio.Event()
 
@@ -26,6 +27,7 @@ def synchronized_request(func):
             result = await func(self, *args, **kwargs)
         finally:
             if requests is not None and key in requests:
+                logger.info(f"Releasing {key}")
                 event = requests.pop(key)
                 event.set()
 
