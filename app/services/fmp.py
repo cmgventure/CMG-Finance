@@ -369,21 +369,26 @@ class FMPService:
             for category in categories:
                 category_ids.setdefault(category.value_definition.lower(), []).append(category.id)
 
-            companies = await unit_of_work.company.get_multi()
+            companies = await unit_of_work.company.get_unfilled_companies()
             for company in companies:
                 for period_type in FiscalPeriodType.list():
-                    raw_statements = await self.fetch_statements(company.ticker, period_type)
-                    statements, categories_to_update = self._extract_statements(
-                        raw_statements, category_ids, period_type, company.cik
-                    )
+                    try:
+                        raw_statements = await self.fetch_statements(company.ticker, period_type)
+                        statements, categories_to_update = self._extract_statements(
+                            raw_statements, category_ids, period_type, company.cik
+                        )
 
-                    logger.info(
-                        f"Saving financial statements for company with ticker {company.ticker} "
-                        f"and {len(statements)} financial statements"
-                    )
-                    if categories_to_update:
-                        await unit_of_work.category.create_many(categories_to_update)
-                    await unit_of_work.financial_statement.create_many(statements)
+                        logger.info(
+                            f"Saving {period_type} financial statements for company with ticker {company.ticker} "
+                            f"and {len(statements)} financial statements"
+                        )
+                        if categories_to_update:
+                            await unit_of_work.category.create_many(categories_to_update)
+                        await unit_of_work.financial_statement.create_many(statements)
+                    except Exception as e:
+                        logger.error(f"Error while updating financial statements for company {company.ticker}: {e}")
+
+            logger.info("Finished updating financial statements")
 
     async def start_companies_update(self) -> str:
         if FMPService.companies_update_task and not FMPService.companies_update_task.done():

@@ -24,14 +24,14 @@ def upgrade() -> None:
         "financial_statements",
         "value",
         existing_type=postgresql.MONEY(),
-        type_=sa.Numeric(precision=24, scale=4),
+        type_=sa.Numeric(precision=38, scale=4),
         existing_nullable=True,
     )
     op.alter_column(
         "fmp_statements",
         "value",
         existing_type=postgresql.MONEY(),
-        type_=sa.Numeric(precision=24, scale=4),
+        type_=sa.Numeric(precision=38, scale=4),
         existing_nullable=True,
     )
     # ### end Alembic commands ###
