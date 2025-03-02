@@ -385,6 +385,7 @@ class FMPService:
                         if categories_to_update:
                             await unit_of_work.category.create_many(categories_to_update)
                         await unit_of_work.financial_statement.create_many(statements)
+                        await unit_of_work.session.commit()
                     except Exception as e:
                         logger.error(f"Error while updating financial statements for company {company.ticker}: {e}")
 
