@@ -148,7 +148,11 @@ class FMPService:
     async def _get_financial_statement(data: FinancialStatementRequest) -> FMPStatement | None:
         async with UnitOfWork() as unit_of_work:
             statement = await unit_of_work.financial_statement.get_one_or_none(
-                ticker=data.ticker, label=data.category.lower(), period=data.period
+                ticker=data.ticker,
+                label=data.category.lower(),
+                period=data.period
+                if data.period_type in (FiscalPeriodType.ANNUAL, FiscalPeriodType.QUARTER)
+                else data.period.lower(),
             )
             logger.info(f"Got financial statement for {data=}")
             return statement

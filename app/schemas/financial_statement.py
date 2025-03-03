@@ -1,7 +1,7 @@
 from typing import Self
 from uuid import UUID
 
-from pydantic import constr, field_validator, model_validator
+from pydantic import Field, constr, field_validator, model_validator
 
 from app.enums.fiscal_period import FiscalPeriod, FiscalPeriodType
 from app.schemas.base import Base, BaseRequest
@@ -54,14 +54,14 @@ class FMPStatement(Base):
 class FinancialStatementRequest(BaseRequest):
     ticker: constr(to_upper=True)
     category: constr(to_lower=True)
-    period: str | None = None
+    period: str = Field(default=str(FiscalPeriod.LATEST))
 
     @field_validator("period", mode="before")
     @classmethod
-    def apply_period_patterns(cls, v: str | None) -> str:
+    def apply_period_patterns(cls, v: str) -> str:
         from app.utils.utils import apply_fiscal_period_patterns
 
-        return apply_fiscal_period_patterns(v.upper()) if v else str(FiscalPeriod.LATEST)
+        return apply_fiscal_period_patterns(v.upper())
 
     @property
     def period_type(self) -> FiscalPeriodType:
