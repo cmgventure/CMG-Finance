@@ -147,9 +147,11 @@ class FMPService:
     @staticmethod
     async def _get_financial_statement(data: FinancialStatementRequest) -> FMPStatement | None:
         async with UnitOfWork() as unit_of_work:
-            return await unit_of_work.financial_statement.get_one_or_none(
-                ticker=data.ticker, label=data.category.lower(), period__ilike=data.period.lower()
+            statement = await unit_of_work.financial_statement.get_one_or_none(
+                ticker=data.ticker, label=data.category.lower(), period=data.period
             )
+            logger.info(f"Got financial statement for {data=}")
+            return statement
 
     async def get_financial_statements(
         self,
@@ -370,8 +372,10 @@ class FMPService:
                 category_ids.setdefault(category.value_definition.lower(), []).append(category.id)
 
             companies = await unit_of_work.company.get_unfilled_companies()
-            for company in companies:
-                for period_type in FiscalPeriodType.list():
+
+        for company in companies:
+            for period_type in FiscalPeriodType.list():
+                async with UnitOfWork() as unit_of_work:
                     try:
                         raw_statements = await self.fetch_statements(company.ticker, period_type)
                         statements, categories_to_update = self._extract_statements(
@@ -385,7 +389,6 @@ class FMPService:
                         if categories_to_update:
                             await unit_of_work.category.create_many(categories_to_update)
                         await unit_of_work.financial_statement.create_many(statements)
-                        await unit_of_work.session.commit()
                     except Exception as e:
                         logger.error(f"Error while updating financial statements for company {company.ticker}: {e}")
 

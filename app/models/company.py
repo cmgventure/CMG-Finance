@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String
+from sqlalchemy import Column, Index, String
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base
@@ -6,6 +6,11 @@ from app.models.base import Base
 
 class Company(Base):
     __tablename__ = "companies"
+    __table_args__ = (
+        Index("companies__cik", "cik"),
+        Index("companies__ticker", "ticker"),
+    )
+
     cik = Column(String, primary_key=True)
     name = Column(String)
     ticker = Column(String)

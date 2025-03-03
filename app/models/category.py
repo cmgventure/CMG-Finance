@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import UUID, CheckConstraint, Column, Enum, Integer, String, UniqueConstraint
+from sqlalchemy import UUID, CheckConstraint, Column, Enum, Index, Integer, String, UniqueConstraint, text
 from sqlalchemy.orm import relationship
 
 from app.enums.category import CategoryDefinitionType
@@ -35,6 +35,7 @@ class FMPCategory(Base):
     __table_args__ = (
         CheckConstraint("priority >= 1"),
         UniqueConstraint("label", "value_definition", name="uq_label_value_definition"),
+        Index("ix_fmp_categories_label_lower", text("lower(label)")),
     )
 
     id = Column(UUID(as_uuid=True), primary_key=True, index=True, default=uuid.uuid4)

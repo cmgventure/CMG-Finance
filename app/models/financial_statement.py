@@ -24,14 +24,14 @@ class FinancialStatement(Base):
 class FMPStatement(Base):
     __tablename__ = "fmp_statements"
 
-    period = Column(String, primary_key=True)
+    period = Column(String, primary_key=True, index=True)
     filing_date = Column(String, primary_key=True)
     report_date = Column(String, primary_key=True)
 
     value = Column(Numeric(38, 4))
 
-    cik = Column(String, ForeignKey("companies.cik"), primary_key=True)
-    category_id = Column(UUID(as_uuid=True), ForeignKey("fmp_categories.id"), primary_key=True)
+    cik = Column(String, ForeignKey("companies.cik"), primary_key=True, index=True)
+    category_id = Column(UUID(as_uuid=True), ForeignKey("fmp_categories.id"), primary_key=True, index=True)
 
     company = relationship("Company", back_populates="fmp_statements")
     fmp_category = relationship("FMPCategory", back_populates="fmp_statements")
