@@ -58,10 +58,10 @@ class FinancialStatementRequest(BaseRequest):
 
     @field_validator("period", mode="before")
     @classmethod
-    def apply_period_patterns(cls, v: str) -> str:
+    def apply_period_patterns(cls, v) -> str:
         from app.utils.utils import apply_fiscal_period_patterns
 
-        return apply_fiscal_period_patterns(v.upper())
+        return apply_fiscal_period_patterns(v.upper()) if v else str(FiscalPeriod.LATEST)
 
     @property
     def period_type(self) -> FiscalPeriodType:
