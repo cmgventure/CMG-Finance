@@ -105,7 +105,7 @@ class FMPService:
                     "cik": cik,
                     "period": f"{statement['period']} {statement['calendarYear']}",
                     "report_date": statement["date"],
-                    "filing_date": statement["fillingDate"],
+                    "filing_date": statement["date"],
                 }
 
             for k, v in statement.items():

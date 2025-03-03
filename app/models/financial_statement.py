@@ -25,8 +25,8 @@ class FMPStatement(Base):
     __tablename__ = "fmp_statements"
 
     period = Column(String, primary_key=True, index=True)
-    filing_date = Column(String, primary_key=True)
-    report_date = Column(String, primary_key=True)
+    filing_date = Column(String, nullable=False)
+    report_date = Column(String, nullable=False)
 
     value = Column(Numeric(38, 4))
 
