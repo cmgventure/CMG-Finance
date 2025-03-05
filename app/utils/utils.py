@@ -86,6 +86,8 @@ def apply_fiscal_period_patterns(period: str) -> str:
 
 
 def transform_category(category: str) -> str:
+    if category.endswith("TTM"):
+        category = category[:-3] + " TTM"
     words = re.sub(r"([a-z])([A-Z])", r"\1 \2", category).split()
     words[0] = words[0].capitalize()
     return " ".join(words)
