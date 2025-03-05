@@ -54,6 +54,7 @@ class AbstractRepository(ABC, Generic[ModelType]):
 class SQLAlchemyRepository(AbstractRepository, Generic[ModelType]):
     model: Type[ModelType]
     join_load_list: list[QueryableAttribute] = []
+    index_elements: list[QueryableAttribute] = []
 
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -249,9 +250,18 @@ class SQLAlchemyRepository(AbstractRepository, Generic[ModelType]):
 
         for i in range(0, len(obj_in), 5000):
             values = obj_in[i : i + 5000]
-            statement = insert(self.model).values(values).on_conflict_do_nothing()
+            statement = insert(self.model).values(values)
+
+            if self.index_elements:
+                statement = statement.on_conflict_do_update(
+                    index_elements=self.index_elements,
+                    set_={"value": statement.excluded.value},
+                )
+            else:
+                statement = statement.on_conflict_do_nothing()
+
             statement = self.add_loading_options(statement)
-            return await self.execute(statement=statement)
+            await self.execute(statement=statement)
 
     async def update(
         self, obj_in: BaseModel | dict[str, Any], *, return_object: bool = False, **filters: Any

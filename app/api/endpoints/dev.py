@@ -17,12 +17,14 @@ async def start_companies_update(current_user: get_current_user, service: fmp_se
 
 
 @router.post("/update/financial_statements")
-async def start_financial_statements_update(current_user: get_current_user, service: fmp_service) -> str:
+async def start_financial_statements_update(
+    current_user: get_current_user, service: fmp_service, force_update: bool = False
+) -> str:
     if not current_user.superuser:
         logger.error("Access Denied, user is not a superuser")
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied")
 
-    return await service.start_financial_statements_update()
+    return await service.start_financial_statements_update(force_update)
 
 
 @router.get("/stop/companies")

@@ -367,7 +367,7 @@ class FMPService:
 
             logger.info("Finished updating companies")
 
-    async def add_statements(self) -> None:
+    async def add_statements(self, force_update: bool = False) -> None:
         async with UnitOfWork() as unit_of_work:
             categories = await unit_of_work.category.get_multi()
 
@@ -375,7 +375,10 @@ class FMPService:
             for category in categories:
                 category_ids.setdefault(category.value_definition.lower(), []).append(category.id)
 
-            companies = await unit_of_work.company.get_unfilled_companies()
+            if force_update:
+                companies = await unit_of_work.company.get_multi()
+            else:
+                companies = await unit_of_work.company.get_unfilled_companies()
 
         for company in companies:
             for period_type in FiscalPeriodType.list():
@@ -405,9 +408,9 @@ class FMPService:
         FMPService.companies_update_task = asyncio.create_task(self.add_companies())
         return "Company data has started to be updated"
 
-    async def start_financial_statements_update(self) -> str:
+    async def start_financial_statements_update(self, force_update: bool = False) -> str:
         if FMPService.financial_statements_update_task and not FMPService.financial_statements_update_task.done():
             return "Financial statements data is being updated"
 
-        FMPService.financial_statements_update_task = asyncio.create_task(self.add_statements())
+        FMPService.financial_statements_update_task = asyncio.create_task(self.add_statements(force_update))
         return "Financial statements data has started to be updated"

@@ -13,6 +13,7 @@ from app.repository.base import ModelType, SQLAlchemyRepository
 class FinancialStatementRepository(SQLAlchemyRepository[FMPStatement]):
     model = FMPStatement
     join_load_list = [FMPStatement.company, FMPStatement.fmp_category]
+    index_elements = [FMPStatement.period, FMPStatement.cik, FMPStatement.category_id]
 
     async def get_one_or_none(
         self, order_by: str | None = None, order_direction: OrderDirection = OrderDirection.DESC, **filters: Any
