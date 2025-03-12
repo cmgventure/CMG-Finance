@@ -8,6 +8,18 @@ from app.repository.base import SQLAlchemyRepository
 
 class CompanyRepository(SQLAlchemyRepository[Company]):
     model = Company
+    index_elements = [Company.cik]
+    columns_to_update = [
+        Company.name,
+        Company.sector,
+        Company.industry,
+        Company.country,
+        Company.market_cap,
+        Company.pe,
+        Company.price,
+        Company.change,
+        Company.volume,
+    ]
 
     async def get_tickers(self) -> list[str]:
         logger.debug(f"Getting {self.model_name} tickers")

@@ -51,9 +51,16 @@ class FMPService:
             "cik": company["cik"],
             "name": company["companyName"],
             "ticker": company["symbol"],
-            "business_address": company["address"],
-            "mailing_address": company["address"],
-            "phone": company["phone"],
+            "business_address": company.get("address"),
+            "mailing_address": company.get("address"),
+            "phone": company.get("phone"),
+            "sector": company.get("sector"),
+            "industry": company.get("industry"),
+            "country": company.get("country"),
+            "market_cap": company.get("mktCap"),
+            "price": company.get("price"),
+            "change": company.get("changes"),
+            "volume": company.get("volAvg"),
         }
 
     @staticmethod
