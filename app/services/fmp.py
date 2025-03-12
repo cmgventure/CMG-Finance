@@ -107,7 +107,7 @@ class FMPService:
                     period = f"{FiscalPeriod.FY} {year}"
                 elif not statement.get("period") and period_type == FiscalPeriodType.QUARTER:
                     year, month, day = statement["date"].split("-")
-                    period = f"{FiscalPeriod('Q' + str(ceil(month / 3)))} {year}"
+                    period = f"{FiscalPeriod('Q' + str(ceil(int(month) / 3)))} {year}"
                 else:
                     period = f"{statement['period']} {statement['calendarYear']}"
 
