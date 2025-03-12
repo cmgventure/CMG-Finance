@@ -80,9 +80,9 @@ class FMPService:
             "declarationDate",
         }
 
-        categories_to_update = []
-        results = []
+        results = {}
         historical_results = {}
+        categories_to_update = []
 
         for statement in statements:
             if period_type in (FiscalPeriodType.LATEST, FiscalPeriodType.TTM):
@@ -140,19 +140,20 @@ class FMPService:
 
                 for category_id in category_ids.get(k.lower(), []):
                     result = {"value": str(value), "category_id": category_id} | base
+                    key = f"{result['period']}_{result['category_id']}"
                     if period_type != FiscalPeriodType.HISTORICAL:
-                        results.append(result)
+                        results[key] = result
                         continue
 
-                    key = f"{result['period']}_{category_id}"
                     if historical_result := historical_results.get(key):
                         historical_result["value"] = str(round(float(historical_result["value"]) + value, 4))
                     else:
                         historical_results[key] = result
 
-        results.extend(historical_results.values())
+        values = list(results.values())
+        values.extend(historical_results.values())
 
-        return results, categories_to_update
+        return values, categories_to_update
 
     @staticmethod
     async def _get_financial_statement(data: FinancialStatementRequest) -> FMPStatement | None:
@@ -316,7 +317,7 @@ class FMPService:
             results = [result.get("historical") for result in results]
         results = list(filter(None, results))
 
-        return [{k: v for statement in statements for k, v in statement.items()} for statements in zip(*results)]
+        return [statement for result in results for statement in result]
 
     async def add_statement(
         self, unit_of_work: ABCUnitOfWork, cik: str, ticker: str, period: str | None = None
