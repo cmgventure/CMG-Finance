@@ -1,4 +1,5 @@
 import asyncio
+from math import ceil
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -43,7 +44,7 @@ class FMPService:
 
     @staticmethod
     def _extract_company_data(company: dict) -> dict | None:
-        if not company["cik"]:
+        if not all((company.get("cik"), company.get("companyName"), company.get("symbol"))):
             return
 
         return {
@@ -93,7 +94,7 @@ class FMPService:
                     "filing_date": period_type,
                 }
             elif period_type == FiscalPeriodType.HISTORICAL:
-                year = statement["date"].split("-")[0]
+                year, month, day = statement["date"].split("-")
                 base = {
                     "cik": cik,
                     "period": f"{FiscalPeriod.FY} {year}",
@@ -101,9 +102,18 @@ class FMPService:
                     "filing_date": statement["date"],
                 }
             else:
+                if not statement.get("period") and period_type == FiscalPeriodType.ANNUAL:
+                    year, month, day = statement["date"].split("-")
+                    period = f"{FiscalPeriod.FY} {year}"
+                elif not statement.get("period") and period_type == FiscalPeriodType.QUARTER:
+                    year, month, day = statement["date"].split("-")
+                    period = f"{FiscalPeriod('Q' + str(ceil(month / 3)))} {year}"
+                else:
+                    period = f"{statement['period']} {statement['calendarYear']}"
+
                 base = {
                     "cik": cik,
-                    "period": f"{statement['period']} {statement['calendarYear']}",
+                    "period": period,
                     "report_date": statement["date"],
                     "filing_date": statement["date"],
                 }
@@ -297,6 +307,7 @@ class FMPService:
                     "cash-flow-statement-growth",
                     "key-metrics",
                     "ratios",
+                    "analyst-estimates",
                 ]
             ]
 
@@ -341,13 +352,15 @@ class FMPService:
             await unit_of_work.category.create_many(categories_to_update)
         await unit_of_work.financial_statement.create_many(statements)
 
-    async def add_companies(self) -> None:
+    async def add_companies(self, force_update: bool = False) -> None:
         companies = await self.request("v3/stock/list")
         if not companies:
             return
 
         async with UnitOfWork() as unit_of_work:
-            tickers = set(company["symbol"] for company in companies) - set(await unit_of_work.company.get_tickers())
+            tickers = set(company["symbol"] for company in companies)
+            if not force_update:
+                tickers -= set(await unit_of_work.company.get_tickers())
 
             tasks = [self.request(f"v3/profile/{ticker}") for ticker in tickers]
             for i in range(0, len(tasks), 100):
@@ -367,7 +380,7 @@ class FMPService:
 
             logger.info("Finished updating companies")
 
-    async def add_statements(self, force_update: bool = False) -> None:
+    async def add_statements(self, periods: list[FiscalPeriodType] | None = None, force_update: bool = False) -> None:
         async with UnitOfWork() as unit_of_work:
             categories = await unit_of_work.category.get_multi()
 
@@ -380,8 +393,10 @@ class FMPService:
             else:
                 companies = await unit_of_work.company.get_unfilled_companies()
 
+        periods = periods if periods else FiscalPeriodType.list()
+
         for company in companies:
-            for period_type in FiscalPeriodType.list():
+            for period_type in periods:
                 async with UnitOfWork() as unit_of_work:
                     try:
                         raw_statements = await self.fetch_statements(company.ticker, period_type)
@@ -401,16 +416,18 @@ class FMPService:
 
             logger.info("Finished updating financial statements")
 
-    async def start_companies_update(self) -> str:
+    async def start_companies_update(self, force_update: bool = False) -> str:
         if FMPService.companies_update_task and not FMPService.companies_update_task.done():
             return "Companies data is being updated"
 
-        FMPService.companies_update_task = asyncio.create_task(self.add_companies())
+        FMPService.companies_update_task = asyncio.create_task(self.add_companies(force_update))
         return "Company data has started to be updated"
 
-    async def start_financial_statements_update(self, force_update: bool = False) -> str:
+    async def start_financial_statements_update(
+        self, periods: list[FiscalPeriodType] | None = None, force_update: bool = False
+    ) -> str:
         if FMPService.financial_statements_update_task and not FMPService.financial_statements_update_task.done():
             return "Financial statements data is being updated"
 
-        FMPService.financial_statements_update_task = asyncio.create_task(self.add_statements(force_update))
+        FMPService.financial_statements_update_task = asyncio.create_task(self.add_statements(periods, force_update))
         return "Financial statements data has started to be updated"

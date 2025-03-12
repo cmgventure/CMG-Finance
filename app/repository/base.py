@@ -55,6 +55,7 @@ class SQLAlchemyRepository(AbstractRepository, Generic[ModelType]):
     model: Type[ModelType]
     join_load_list: list[QueryableAttribute] = []
     index_elements: list[QueryableAttribute] = []
+    columns_to_update: list[QueryableAttribute] = []
 
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -252,10 +253,10 @@ class SQLAlchemyRepository(AbstractRepository, Generic[ModelType]):
             values = obj_in[i : i + 5000]
             statement = insert(self.model).values(values)
 
-            if self.index_elements:
+            if self.index_elements and self.columns_to_update:
                 statement = statement.on_conflict_do_update(
                     index_elements=self.index_elements,
-                    set_={"value": statement.excluded.value},
+                    set_={column.key: getattr(statement.excluded, column.key) for column in self.columns_to_update},
                 )
             else:
                 statement = statement.on_conflict_do_nothing()

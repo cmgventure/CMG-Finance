@@ -2,29 +2,35 @@ from fastapi import APIRouter, HTTPException, status
 from loguru import logger
 
 from app.api.dependencies import fmp_service, get_current_user
+from app.enums.fiscal_period import FiscalPeriodType
 from app.utils.utils import get_task_status
 
 router = APIRouter(prefix="/dev", tags=["Dev"])
 
 
 @router.post("/update/companies")
-async def start_companies_update(current_user: get_current_user, service: fmp_service) -> str:
-    if not current_user.superuser:
-        logger.error("Access Denied, user is not a superuser")
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied")
-
-    return await service.start_companies_update()
-
-
-@router.post("/update/financial_statements")
-async def start_financial_statements_update(
+async def start_companies_update(
     current_user: get_current_user, service: fmp_service, force_update: bool = False
 ) -> str:
     if not current_user.superuser:
         logger.error("Access Denied, user is not a superuser")
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied")
 
-    return await service.start_financial_statements_update(force_update)
+    return await service.start_companies_update(force_update)
+
+
+@router.post("/update/financial_statements")
+async def start_financial_statements_update(
+    current_user: get_current_user,
+    service: fmp_service,
+    periods: list[FiscalPeriodType] | None = None,
+    force_update: bool = False,
+) -> str:
+    if not current_user.superuser:
+        logger.error("Access Denied, user is not a superuser")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access Denied")
+
+    return await service.start_financial_statements_update(periods, force_update)
 
 
 @router.get("/stop/companies")
