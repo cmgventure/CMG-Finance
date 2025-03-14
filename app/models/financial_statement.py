@@ -1,4 +1,6 @@
-from sqlalchemy import UUID, Column, ForeignKey, Numeric, String
+import uuid
+
+from sqlalchemy import UUID, Column, ForeignKey, Index, Numeric, String, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base
@@ -35,3 +37,26 @@ class FMPStatement(Base):
 
     company = relationship("Company", back_populates="fmp_statements")
     fmp_category = relationship("FMPCategory", back_populates="fmp_statements")
+
+
+class FMPStatementV2(Base):
+    __tablename__ = "fmp_statements_v2"
+    __table_args__ = (
+        UniqueConstraint("cik", "period", "category_id", name="uq_cik_period_category_id"),
+        Index("idx_cik_period_category_id", "cik", "period", "category_id"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default="gen_random_uuid()")
+
+    period = Column(String, index=True)
+
+    filing_date = Column(String, nullable=False)
+    report_date = Column(String, nullable=False)
+
+    value = Column(Numeric(38, 4), nullable=False)
+
+    cik = Column(String, ForeignKey("companies_v2.cik"), index=True)
+    category_id = Column(UUID(as_uuid=True), ForeignKey("fmp_categories.id"), index=True)
+
+    company_v2 = relationship("CompanyV2", back_populates="fmp_statements_v2")
+    fmp_category = relationship("FMPCategory", back_populates="fmp_statements_v2")
