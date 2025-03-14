@@ -19,5 +19,9 @@ class Base(DeclarativeBase):
         bool: Boolean,
     }
 
+    @classmethod
+    def get_column_keys(cls) -> dict[str, str]:
+        return {column.name: column.key for column in cls.__table__.columns}
+
     def to_dict(self):
         return {field.name: getattr(self, field.name) for field in self.__table__.c}
