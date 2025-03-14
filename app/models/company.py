@@ -27,7 +27,7 @@ class Company(Base):
     pe = Column(Numeric(38, 2), name="p/e", key="pe")
     price = Column(Numeric(38, 2))
     change = Column(Numeric(38, 2))
-    volume = Column(Integer)
+    volume = Column(Numeric(38, 2))
 
     financial_statements = relationship("FinancialStatement", back_populates="company")
     fmp_statements = relationship("FMPStatement", back_populates="company")

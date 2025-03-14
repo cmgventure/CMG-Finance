@@ -31,10 +31,11 @@ class FinancialStatement(Base):
 
 
 class FMPStatement(Base):
-    cik: str
+    id: UUID
     period: str
     filing_date: str | None
     report_date: str | None
+    company_id: UUID
     category_id: UUID
     value: float | None
 

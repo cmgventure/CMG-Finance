@@ -42,8 +42,8 @@ class FMPStatement(Base):
 class FMPStatementV2(Base):
     __tablename__ = "fmp_statements_v2"
     __table_args__ = (
-        UniqueConstraint("cik", "period", "category_id", name="uq_cik_period_category_id"),
-        Index("idx_cik_period_category_id", "cik", "period", "category_id"),
+        UniqueConstraint("company_id", "period", "category_id", name="uq_company_id_period_category_id"),
+        Index("idx_company_id_period_category_id", "company_id", "period", "category_id"),
     )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default="gen_random_uuid()")
@@ -55,7 +55,7 @@ class FMPStatementV2(Base):
 
     value = Column(Numeric(38, 4), nullable=False)
 
-    cik = Column(String, ForeignKey("companies_v2.cik"), index=True)
+    company_id = Column(String, ForeignKey("companies_v2.id"), index=True)
     category_id = Column(UUID(as_uuid=True), ForeignKey("fmp_categories.id"), index=True)
 
     company_v2 = relationship("CompanyV2", back_populates="fmp_statements_v2")
