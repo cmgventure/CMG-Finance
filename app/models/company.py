@@ -22,7 +22,7 @@ class Company(Base):
     industry = Column(String)
     country = Column(String)
     market_cap = Column(Numeric(38, 2))
-    pe = Column(Numeric(38, 2), name="P/E", key="pe")
+    pe = Column(Numeric(38, 2), name="p/e", key="pe")
     price = Column(Numeric(38, 2))
     change = Column(Numeric(38, 2))
     volume = Column(Integer)

@@ -1,6 +1,6 @@
 """replace_money_column
 
-Revision ID: d61bda7ff199
+Revision ID: 0006
 Revises: 0005
 Create Date: 2025-02-24 17:13:20.157965
 

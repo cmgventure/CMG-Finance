@@ -14,7 +14,6 @@ from app.enums.base import RequestMethod
 from app.enums.category import CategoryDefinitionType
 from app.enums.fiscal_period import FiscalPeriod, FiscalPeriodType
 from app.models.company import Company
-from app.models.financial_statement import FMPStatement
 from app.schemas.financial_statement import FinancialStatementRequest, FinancialStatementsRequest
 from app.utils.unitofwork import ABCUnitOfWork, UnitOfWork
 from app.utils.utils import parse_financial_statement_key, synchronized_request, transform_category
@@ -163,24 +162,30 @@ class FMPService:
         return values, categories_to_update
 
     @staticmethod
-    async def _get_financial_statement(data: FinancialStatementRequest) -> FMPStatement | None:
+    async def _get_financial_statement(data: FinancialStatementRequest) -> str | float | None:
         async with UnitOfWork() as unit_of_work:
-            statement = await unit_of_work.financial_statement.get_one_or_none(
-                ticker=data.ticker,
-                label=data.category.lower(),
-                period=data.period
-                if data.period_type in (FiscalPeriodType.ANNUAL, FiscalPeriodType.QUARTER)
-                else data.period.lower(),
-            )
+            column_keys = Company.get_column_keys()
+            if key := column_keys.get(data.category):
+                company = await unit_of_work.company.get_one_or_none(ticker=data.ticker)
+                result = getattr(company, key, None)
+            else:
+                financial_statement = await unit_of_work.financial_statement.get_one_or_none(
+                    ticker=data.ticker,
+                    label=data.category,
+                    period=data.period
+                    if data.period_type in (FiscalPeriodType.ANNUAL, FiscalPeriodType.QUARTER)
+                    else data.period.lower(),
+                )
+                result = financial_statement.value if financial_statement else None
             logger.info(f"Got financial statement for {data=}")
-            return statement
+            return result
 
     async def get_financial_statements(
         self,
         data: FinancialStatementsRequest,
         force_update: bool = False,
         wait_response: bool = False,
-    ) -> dict:
+    ) -> dict[str, str | float | None]:
         logger.info(f"Accepted request with {len(data.keys)} keys: {data.keys}")
 
         parsed_statements = {}
@@ -213,7 +218,7 @@ class FMPService:
         data: FinancialStatementRequest,
         force_update: bool = False,
         wait_response: bool = False,
-    ) -> float | None:
+    ) -> str | float | None:
         logger.info(f"Accepted {data} request")
 
         if data.period_type == FiscalPeriodType.TTM and not data.category.endswith("ttm"):
@@ -223,7 +228,7 @@ class FMPService:
             # gets value from db or None
             financial_statement = await self._get_financial_statement(data)
             if financial_statement is not None:
-                return financial_statement.value
+                return financial_statement
 
         # at this point, we didn't get any values for all the specified tags of the category (sorted by priority)
         # we need to check if there are any formula type categories and calculate the value
@@ -233,8 +238,7 @@ class FMPService:
         if wait_response:
             logger.info(f"Updating financial statement, {key=}")
             await self.update_financial_statement(data, key=key)
-            financial_statement = await self._get_financial_statement(data)
-            value = financial_statement.value if financial_statement else None
+            value = await self._get_financial_statement(data)
         else:
             # run bg task to calculate value
             logger.info(f"Creating financial statement update task, {key=}")
@@ -252,6 +256,8 @@ class FMPService:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Company not found for stock ticker {data.ticker}",
                 )
+            elif data.category in Company.get_column_keys():
+                return
 
             logger.info(f"Scraping data for {data.ticker} {data.period_type}")
 
@@ -370,23 +376,29 @@ class FMPService:
             if not force_update:
                 tickers -= set(await unit_of_work.company.get_tickers())
 
-            tasks = [self.request(f"v3/profile/{ticker}") for ticker in tickers]
-            for i in range(0, len(tasks), 100):
-                results = await asyncio.gather(*tasks[i : i + 100])
-                companies_data = [
-                    data
-                    for company in results
-                    if company and (data := self._extract_company_data(company[0])) is not None
-                ]
+        tasks = [self.request(f"v3/profile/{ticker}") for ticker in tickers]
+        for i in range(0, len(tasks), 100):
+            async with UnitOfWork() as unit_of_work:
+                try:
+                    results = await asyncio.gather(*tasks[i : i + 100])
+                    companies_data = list(
+                        {
+                            data["cik"]: data
+                            for company in results
+                            if company and (data := self._extract_company_data(company[0])) is not None
+                        }.values()
+                    )
 
-                logger.info(f"Get {len(companies_data)} companies data")
+                    logger.info(f"Get {len(companies_data)} companies data")
 
-                if companies_data:
-                    await unit_of_work.company.create_many(companies_data)
+                    if companies_data:
+                        await unit_of_work.company.create_many(companies_data)
 
-                logger.info(f"Finished updating {i + 100} companies")
+                    logger.info(f"Finished updating {i + 100} companies")
+                except Exception as e:
+                    logger.error(f"Error while updating companies: {e}")
 
-            logger.info("Finished updating companies")
+        logger.info("Finished updating companies")
 
     async def add_statements(self, periods: list[FiscalPeriodType] | None = None, force_update: bool = False) -> None:
         async with UnitOfWork() as unit_of_work:
