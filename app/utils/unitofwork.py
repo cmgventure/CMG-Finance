@@ -6,8 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import async_session
 from app.repository.category import CategoryRepository
-from app.repository.company import CompanyRepository
-from app.repository.financial_statement import FinancialStatementRepository
+from app.repository.company import CompanyRepository, CompanyRepositoryV2
+from app.repository.financial_statement import FinancialStatementRepository, FinancialStatementRepositoryV2
 from app.repository.subscription import SubscriptionRepository
 from app.repository.user import UserRepository
 
@@ -19,8 +19,10 @@ class ABCUnitOfWork(ABC):
     user: UserRepository
     subscription: SubscriptionRepository
     company: CompanyRepository
+    company_v2: CompanyRepositoryV2
     category: CategoryRepository
     financial_statement: FinancialStatementRepository
+    financial_statement_v2: FinancialStatementRepositoryV2
 
     @abstractmethod
     def __init__(self) -> None:
@@ -46,8 +48,10 @@ class UnitOfWork(ABCUnitOfWork):
         self.user = UserRepository(self.session)
         self.subscription = SubscriptionRepository(self.session)
         self.company = CompanyRepository(self.session)
+        self.company_v2 = CompanyRepositoryV2(self.session)
         self.category = CategoryRepository(self.session)
         self.financial_statement = FinancialStatementRepository(self.session)
+        self.financial_statement_v2 = FinancialStatementRepositoryV2(self.session)
 
         return self
 

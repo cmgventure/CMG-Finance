@@ -23,7 +23,7 @@ async def start_companies_update(
 async def start_financial_statements_update(
     current_user: get_current_user,
     service: fmp_service,
-    periods: list[FiscalPeriodType] | None = None,
+    periods: list[FiscalPeriodType],
     force_update: bool = False,
 ) -> str:
     if not current_user.superuser:

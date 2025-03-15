@@ -14,9 +14,7 @@ class Category(Base):
         UniqueConstraint("label", "value_definition", "type", name="uq_label_value_definition_type"),
     )
 
-    id = Column(
-        UUID(as_uuid=True), primary_key=True, index=True, default=uuid.uuid4, server_default="gen_random_uuid()"
-    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default="gen_random_uuid()")
     label = Column(String)
     value_definition = Column(String)
     description = Column(String, nullable=True)
@@ -38,9 +36,9 @@ class FMPCategory(Base):
         Index("ix_fmp_categories_label_lower", text("lower(label)")),
     )
 
-    id = Column(UUID(as_uuid=True), primary_key=True, index=True, default=uuid.uuid4)
-    label = Column(String)
-    value_definition = Column(String)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default="gen_random_uuid()")
+    label = Column(String, nullable=False)
+    value_definition = Column(String, nullable=False)
     description = Column(String, nullable=True)
     type = Column(
         Enum(CategoryDefinitionType, name="fmpcategorydefinitiontype"),
@@ -51,6 +49,11 @@ class FMPCategory(Base):
 
     fmp_statements = relationship(
         "FMPStatement",
+        back_populates="fmp_category",
+        cascade="save-update, merge, delete, delete-orphan",
+    )
+    fmp_statements_v2 = relationship(
+        "FMPStatementV2",
         back_populates="fmp_category",
         cascade="save-update, merge, delete, delete-orphan",
     )
