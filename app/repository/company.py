@@ -39,7 +39,7 @@ class CompanyRepository(SQLAlchemyRepository[Company]):
 
 class CompanyRepositoryV2(SQLAlchemyRepository[CompanyV2]):
     model = CompanyV2
-    index_elements = [CompanyV2.id, CompanyV2.cik, CompanyV2.ticker]
+    index_elements = [CompanyV2.cik, CompanyV2.ticker]
     columns_to_update = [
         CompanyV2.sector,
         CompanyV2.industry,

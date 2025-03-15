@@ -55,7 +55,7 @@ class FMPStatementV2(Base):
 
     value = Column(Numeric(38, 4), nullable=False)
 
-    company_id = Column(String, ForeignKey("companies_v2.id"), index=True)
+    company_id = Column(UUID(as_uuid=True), ForeignKey("companies_v2.id"), index=True)
     category_id = Column(UUID(as_uuid=True), ForeignKey("fmp_categories.id"), index=True)
 
     company_v2 = relationship("CompanyV2", back_populates="fmp_statements_v2")

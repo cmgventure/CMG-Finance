@@ -249,8 +249,8 @@ class SQLAlchemyRepository(AbstractRepository, Generic[ModelType]):
         """
         logger.debug(f"Creating {self.model_name}")
 
-        for i in range(0, len(obj_in), 5000):
-            values = obj_in[i : i + 5000]
+        for i in range(0, len(obj_in), 4000):
+            values = obj_in[i : i + 4000]
             statement = insert(self.model).values(values)
 
             if self.index_elements and self.columns_to_update:
