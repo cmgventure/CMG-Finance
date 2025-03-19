@@ -5,6 +5,7 @@ from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import async_session
+from app.repository.api_key import ApiKeyRepository
 from app.repository.category import CategoryRepository
 from app.repository.company import CompanyRepository, CompanyRepositoryV2
 from app.repository.financial_statement import FinancialStatementRepository, FinancialStatementRepositoryV2
@@ -17,6 +18,7 @@ class ABCUnitOfWork(ABC):
 
     # Repository classes
     user: UserRepository
+    api_key: ApiKeyRepository
     subscription: SubscriptionRepository
     company: CompanyRepository
     company_v2: CompanyRepositoryV2
@@ -46,6 +48,7 @@ class UnitOfWork(ABCUnitOfWork):
 
         # Repository classes
         self.user = UserRepository(self.session)
+        self.api_key = ApiKeyRepository(self.session)
         self.subscription = SubscriptionRepository(self.session)
         self.company = CompanyRepository(self.session)
         self.company_v2 = CompanyRepositoryV2(self.session)

@@ -12,3 +12,4 @@ class User(Base):
     password_hash = Column(String, nullable=True)
 
     subscriptions = relationship("Subscription", back_populates="user")
+    api_keys = relationship("ApiKey", back_populates="user")
