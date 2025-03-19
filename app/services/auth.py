@@ -61,7 +61,7 @@ class AuthService:
                 )
 
     @staticmethod
-    def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
+    def create_token(data: dict, expires_delta: timedelta | None = None) -> str:
         if expires_delta:
             expire = datetime.utcnow() + expires_delta
         else:
@@ -83,21 +83,25 @@ class AuthService:
             )
 
         access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-        access_token = cls.create_access_token(data={"sub": user.email}, expires_delta=access_token_expires)
-        refresh_token = cls.create_access_token(data={"sub": user.email}, expires_delta=timedelta(days=7))
+        access_token = cls.create_token(data={"sub": user.email}, expires_delta=access_token_expires)
+        refresh_token = cls.create_token(data={"sub": user.email}, expires_delta=timedelta(days=7))
 
         return {"access_token": access_token, "refresh_token": refresh_token}
+
+    @classmethod
+    async def get_google_access_token(cls, user: User) -> str:
+        return cls.create_token(data={"sub": user.email}, expires_delta=timedelta(days=7))
 
     @classmethod
     async def refresh_access_token(cls, refresh_token: str) -> dict[str, str]:
         try:
             payload = jwt.decode(refresh_token, settings.JWT_SECRET_KEY, algorithms=[settings.ALGORITHM])
-            user_id: str = payload.get("sub")
-            if user_id is None:
+            user_email: str = payload.get("sub")
+            if user_email is None:
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
 
             access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-            access_token = cls.create_access_token(data={"sub": user_id}, expires_delta=access_token_expires)
+            access_token = cls.create_token(data={"sub": user_email}, expires_delta=access_token_expires)
             return {"access_token": access_token}
         except JWTError:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
@@ -107,13 +111,16 @@ class AuthService:
         cls,
         token: auth_scheme,
     ) -> User:
-        email = await cls.verify_token(token.credentials)
-
         async with UnitOfWork() as unit_of_work:
-            user = await unit_of_work.user.get_one_or_none(email=email)
-            if not user:
-                logger.error(f"User not found with email: {email}")
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+            api_key = await unit_of_work.api_key.get_one_or_none(key=token.credentials)
+            if not api_key:
+                email = await cls.verify_token(token.credentials)
+                user = await unit_of_work.user.get_one_or_none(email=email)
+                if not user:
+                    logger.error(f"User not found with email: {email}")
+                    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+            else:
+                user = api_key.user
 
             user_subscription = await unit_of_work.subscription.get_one_or_none(
                 order_by="created_at", user_id=user.id, expired_at__gt=datetime.utcnow()
